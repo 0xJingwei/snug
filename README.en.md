@@ -133,11 +133,11 @@ UU Remote scales the picture proportionally to fit the phone, leaving black bars
 
 Snug then stays in the menu bar; no further setup is needed. Open Snug again at any time to bring up Settings.
 
-**Updates**: Snug checks for a new version each time it starts. When one is available, it lists what changed in every newer version and installs with one click, downloading only the parts that changed and keeping your settings and permissions. You can also check manually on the About tab of Settings (「关于」), or switch the update source between Tencent Cloud (「腾讯云」) and GitHub. In-app updates are available from 2.1.0; replace earlier versions manually.
+**Updates**: Snug checks at launch and installs new versions with one click, keeping your settings and permissions. You can also check manually or switch the update source on the About tab (「关于」). Versions before 2.1.0 must be replaced manually.
 
 <div align="center">
-<img src="https://dl.zephyrxiang.com/snug/media/welcome.529d7d28.png" width="45%" alt="Welcome window"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.ee67ab30.png" width="45%" alt="Settings">
-<p><sub>Welcome window · Settings</sub></p>
+<img src="https://dl.zephyrxiang.com/snug/media/welcome.529d7d28.png" width="30%" alt="Welcome window"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.ee67ab30.png" width="30%" alt="Settings"> <img src="https://dl.zephyrxiang.com/snug/media/about.5534d9dc.png" width="30%" alt="About: version, software update, and update source">
+<p><sub>Welcome window · Settings · About</sub></p>
 </div>
 
 **Build from source** (requires Xcode and Swift 6)
