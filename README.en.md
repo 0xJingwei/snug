@@ -141,7 +141,7 @@ Snug then stays in the menu bar; no further setup is needed. Open Snug again at 
 **Updates**: Snug checks for a new version each time it starts. When one is available, it lists what changed in every newer version and installs with one click, downloading only the parts that changed and keeping your settings and permissions. You can also check manually on the About tab of Settings (「关于」), or switch the update source between Tencent Cloud (「腾讯云」) and GitHub. In-app updates are available from 2.1.0; replace earlier versions manually.
 
 <div align="center">
-<img src="https://dl.zephyrxiang.com/snug/media/welcome.529d7d28.png" width="45%" alt="Welcome window"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.b7bbc139.png" width="45%" alt="Settings">
+<img src="https://dl.zephyrxiang.com/snug/media/welcome.529d7d28.png" width="45%" alt="Welcome window"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.ee67ab30.png" width="45%" alt="Settings">
 <p><sub>Welcome window · Settings</sub></p>
 </div>
 
