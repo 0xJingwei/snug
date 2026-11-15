@@ -14,11 +14,14 @@ final class ConfigStore {
         config = file.loadOrQuarantine() ?? AppConfig()
     }
 
-    func update(_ change: (inout AppConfig) throws -> Void) throws {
+    /// 交回是不是真的改了：值没变不写盘（拖滑块时同一档会反复设）
+    @discardableResult
+    func update(_ change: (inout AppConfig) throws -> Void) throws -> Bool {
         var next = config
         try change(&next)
-        guard next != config else { return }
+        guard next != config else { return false }
         try file.save(next)
         config = next
+        return true
     }
 }

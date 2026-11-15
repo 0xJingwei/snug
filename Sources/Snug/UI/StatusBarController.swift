@@ -55,23 +55,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     /// 最上面一行：状态圆点 + 此刻的状态和一行说明。只看不点，所以用自定义视图（不会高亮）
     private func status() -> NSMenuItem {
-        let view = NSHostingView(rootView: MenuStatusView(text: StatusText(state), color: statusColor))
+        let view = NSHostingView(rootView: MenuStatusView(text: StatusText(state), color: state.statusColor))
         view.frame.size = view.fittingSize
         view.autoresizingMask = [.width]
         let it = NSMenuItem()
         it.view = view
         return it
-    }
-
-    /// 绿色：远程中；橙色：要处理（缺权限、连接中断）；灰色：等待连接、手机屏关着
-    private var statusColor: Color {
-        guard state.accessibilityTrusted else { return .orange }
-        guard state.config.phoneScreen else { return .gray }
-        switch state.connection {
-        case .connected: return .green
-        case .reconnecting: return .orange
-        case .idle: return .gray
-        }
     }
 
     private func action(_ title: String, _ sel: Selector, key: String = "", symbol: String) -> NSMenuItem {

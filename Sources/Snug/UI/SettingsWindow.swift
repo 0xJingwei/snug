@@ -37,17 +37,11 @@ struct SettingsView: View {
                 Toggle(isOn: binding(state.launchAtLogin, intents.setLaunchAtLogin)) {
                     SettingLabel("开机启动", symbol: "power", tint: .gray)
                 }
+                // 没授权时「授权…」在顶部状态里，这里只写状态
                 LabeledContent {
-                    if state.accessibilityTrusted {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).imageScale(.small)
-                            Text("已授权").foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Button("授权…") { navigation.openWelcome() }
-                    }
+                    PermissionStatus(granted: state.accessibilityTrusted)
                 } label: {
-                    SettingLabel(PermissionName.accessibility, detail: "用于移动窗口与转换手势", symbol: "hand.raised.fill", tint: .indigo)
+                    SettingLabel.accessibility
                 }
             } footer: {
                 HStack {
@@ -97,7 +91,7 @@ private struct StatusHeader: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
-                .background(tint.gradient, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(state.statusColor.gradient, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(text.headline).font(.headline)
                 if let detail = text.detail { Text(detail).foregroundStyle(.secondary) }
@@ -118,11 +112,6 @@ private struct StatusHeader: View {
         case .reconnecting: return "arrow.triangle.2.circlepath"
         case .connected: return "iphone.gen3.radiowaves.left.and.right"
         }
-    }
-
-    private var tint: Color {
-        if !state.accessibilityTrusted { return .orange }
-        return state.connection == .connected ? .green : .blue
     }
 }
 
@@ -203,15 +192,19 @@ final class SettingsWindowController {
                                           SettingsView(state: state, intents: intents, navigation: navigation)))
             tabs.addTabViewItem(Self.item("关于", symbol: "info.circle",
                                           AboutView(state: state, intents: intents, navigation: navigation)))
+            // 先选好页再建窗口：窗口按这一页的大小建，居中才是正的
+            tabs.selectedTabViewItemIndex = tab.rawValue
             let w = NSWindow(contentViewController: tabs)
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.toolbarStyle = .preference
             w.isReleasedWhenClosed = false
+            // 只在建好时居中：之后关了再开，还在用户拖到的地方
+            w.center()
             self.tabs = tabs
             window = w
+        } else {
+            tabs?.selectedTabViewItemIndex = tab.rawValue
         }
-        tabs?.selectedTabViewItemIndex = tab.rawValue
-        if window?.isVisible == false { window?.center() }
         window?.present(activating: activating)
     }
 

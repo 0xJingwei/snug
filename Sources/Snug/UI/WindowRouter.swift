@@ -11,10 +11,7 @@ final class WindowRouter: Navigation {
 
     init(controller: AppController) { self.controller = controller }
 
-    func openSettings() {
-        controller.refreshLaunchAtLogin()
-        settings.show()
-    }
+    func openSettings() { settings.show() }
 
     func openWelcome() { welcome.show() }
     func openAbout() { settings.show(.about) }

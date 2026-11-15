@@ -3,11 +3,11 @@ import AppKit
 import SwiftUI
 
 extension NSWindow {
-    convenience init(hosting view: some View, title: String, style: NSWindow.StyleMask = [.titled, .closable]) {
+    convenience init(hosting view: some View, title: String) {
         let hosting = NSHostingController(rootView: view)
         hosting.sizingOptions = [.preferredContentSize]
         self.init(contentViewController: hosting)
-        styleMask = style
+        styleMask = [.titled, .closable]
         self.title = title
         isReleasedWhenClosed = false
         setContentSize(hosting.view.fittingSize)   // 先定尺寸再居中，否则按 0×0 居中会偏

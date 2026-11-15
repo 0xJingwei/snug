@@ -29,16 +29,9 @@ struct WelcomeView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
-                SettingLabel(PermissionName.accessibility, detail: "用于移动窗口与转换手势", symbol: "hand.raised.fill", tint: .indigo)
+                SettingLabel.accessibility
                 Spacer(minLength: 12)
-                if granted {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).imageScale(.small)
-                        Text("已授权").foregroundStyle(.secondary)
-                    }
-                } else {
-                    Text("未授权").foregroundStyle(.secondary)
-                }
+                PermissionStatus(granted: granted)
             }
             .padding(12)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))

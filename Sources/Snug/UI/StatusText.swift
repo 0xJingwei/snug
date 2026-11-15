@@ -1,6 +1,7 @@
 // 状态文案：一个标题 + 一个短说明。把 AppState 翻成菜单栏和设置窗口共用的状态，也给手机屏上的提示用；
 // 手机屏列表里窗口、App 的几处说法也在这里。只用短词，书面、克制
 import SnugCore
+import SwiftUI
 
 struct StatusText: Equatable {
     var headline: String
@@ -43,6 +44,19 @@ struct StatusText: Equatable {
             return s.phone.placed.map { "手机屏 · \($0.window.app)" } ?? "手机屏使用中"
         case .off:
             return ControllerKind.wantsPhoneScreen(s.controllers) ? nil : "电脑控制端，不提供手机屏"
+        }
+    }
+}
+
+extension AppState {
+    /// 状态的颜色，菜单栏的圆点和设置页顶部的图标共用：绿色远程中；橙色要处理（缺权限、连接中断）；灰色等待连接、手机屏关着
+    var statusColor: Color {
+        guard accessibilityTrusted else { return .orange }
+        guard config.phoneScreen else { return .gray }
+        switch connection {
+        case .connected: return .green
+        case .reconnecting: return .orange
+        case .idle: return .gray
         }
     }
 }

@@ -101,11 +101,11 @@ extension AppController: AppIntents {
 
     // MARK: 配置
 
-    /// 改配置、写盘、通知界面。写盘失败时配置保持原样，界面上提示
+    /// 改配置、写盘、通知界面，交回是不是真的改了（值没变就什么都不做，也不打日志）。写盘失败时配置保持原样，界面上提示
     @discardableResult
     func changeConfig(_ what: String, _ change: (inout AppConfig) -> Void) -> Bool {
         do {
-            try store.update(change)
+            guard try store.update(change) else { return false }
         } catch {
             state.update(\.configSaveFailed, true)
             Log.error("设置（\(what)）写盘失败：\(error)")

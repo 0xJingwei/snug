@@ -1,4 +1,5 @@
-// 设置页、「关于 Snug」共用的行标题：系统设置那样的彩色方块图标（SF Symbols）+ 标题 + 一行短说明
+// 设置页、「关于 Snug」、欢迎页共用的行标题：系统设置那样的彩色方块图标（SF Symbols）+ 标题 + 一行短说明；
+// 以及辅助功能权限那一行的标题和状态
 import SwiftUI
 
 struct SettingLabel: View {
@@ -32,6 +33,29 @@ struct SettingLabel: View {
                     Text(detail).font(.callout).foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+}
+
+extension SettingLabel {
+    /// 辅助功能权限那一行（欢迎页、设置页）
+    static var accessibility: SettingLabel {
+        SettingLabel(PermissionName.accessibility, detail: "用于移动窗口与转换手势", symbol: "hand.raised.fill", tint: .indigo)
+    }
+}
+
+/// 权限的状态：已授权带一个小对勾，未授权只写字。「授权…」放在各页的主按钮位置，不在这一行重复
+struct PermissionStatus: View {
+    let granted: Bool
+
+    var body: some View {
+        if granted {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).imageScale(.small)
+                Text("已授权").foregroundStyle(.secondary)
+            }
+        } else {
+            Text("未授权").foregroundStyle(.secondary)
         }
     }
 }

@@ -57,6 +57,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /// 打开 Snug 的窗口、或从系统设置点回来时，刷新开机启动的状态：设置页的「前往允许」就是让人去「登录项」走一趟再回来
+    func applicationDidBecomeActive(_ notification: Notification) {
+        controller.refreshLaunchAtLogin()
+    }
+
     /// 登录项拉起 App 时，打开 App 的 Apple Event 里带着 keyAELaunchedAsLogInItem。只在启动过程中读得到
     private static var launchedAsLoginItem: Bool {
         guard let event = NSAppleEventManager.shared().currentAppleEvent,
