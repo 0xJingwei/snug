@@ -164,36 +164,73 @@ enum RenderSamples {
     static let windows = [
         WindowInfo(key: WindowKey(pid: 1, id: 1), app: "Ghostty", bundleID: "com.mitchellh.ghostty", title: "~/projects/snug — zsh"),
         WindowInfo(key: WindowKey(pid: 2, id: 2), app: "Safari", bundleID: "com.apple.Safari", title: "Swift 文档 — Concurrency"),
-        WindowInfo(key: WindowKey(pid: 3, id: 3), app: "备忘录", bundleID: "com.apple.Notes", title: "周末计划"),
-        WindowInfo(key: WindowKey(pid: 4, id: 4), app: "访达", bundleID: "com.apple.finder", title: "下载"),
+        WindowInfo(key: WindowKey(pid: 3, id: 3), app: "备忘录", bundleID: "com.apple.Notes", title: "周末计划", minimized: true),
         WindowInfo(key: WindowKey(pid: 5, id: 5), app: "终端", bundleID: "com.apple.Terminal", title: "ssh build-server"),
-        WindowInfo(key: WindowKey(pid: 6, id: 6), app: "日历", bundleID: "com.apple.iCal", title: "11月"),
+        WindowInfo(key: WindowKey(pid: 1, id: 7), app: "Ghostty", bundleID: "com.mitchellh.ghostty", title: "~ — htop"),
+    ]
+
+    private static func app(_ bundleID: String, _ name: String) -> AppInfo { AppInfo(bundleID: bundleID, name: name, path: nil) }
+
+    private static let installed: [InstalledApp] = [
+        (app("com.apple.AppStore", "App Store"), "App Store"), (app("com.apple.calculator", "计算器"), "Calculator"),
+        (app("com.apple.iCal", "日历"), "Calendar"), (app("com.apple.finder", "访达"), "Finder"),
+        (app("com.mitchellh.ghostty", "Ghostty"), "Ghostty"), (app("com.apple.mail", "邮件"), "Mail"),
+        (app("com.apple.Maps", "地图"), "Maps"), (app("com.apple.Music", "音乐"), "Music"),
+        (app("com.apple.Notes", "备忘录"), "Notes"), (app("com.apple.Photos", "照片"), "Photos"),
+        (app("com.apple.Preview", "预览"), "Preview"), (app("com.apple.reminders", "提醒事项"), "Reminders"),
+        (app("com.apple.Safari", "Safari"), "Safari"), (app("com.apple.systempreferences", "系统设置"), "System Settings"),
+        (app("com.apple.Terminal", "终端"), "Terminal"), (app("com.apple.TextEdit", "文本编辑"), "TextEdit"),
+    ].map { InstalledApp($0.0, english: $0.1) }
+
+    private static let running = [
+        RunningApp(pid: 1, app: app("com.mitchellh.ghostty", "Ghostty"), windows: [windows[0], windows[4]]),
+        RunningApp(pid: 2, app: app("com.apple.Safari", "Safari"), windows: [windows[1]]),
+        RunningApp(pid: 3, app: app("com.apple.Notes", "备忘录"), windows: [windows[2]]),
+        RunningApp(pid: 4, app: app("com.apple.finder", "访达"), windows: []),
+        RunningApp(pid: 5, app: app("com.apple.Terminal", "终端"), windows: [windows[3]]),
     ]
 
     private static var phone: [RenderSample] {
-        [
-            phoneSample("phone-list") { _ in },
-            phoneSample("phone-placed") { s in s.phone.placed = PhoneDesk.Placed(window: windows[0], zoom: 2) },
-            phoneSample("phone-placed-dark", dark: true) { s in s.phone.placed = PhoneDesk.Placed(window: windows[0], zoom: 2) },
-            phoneSample("phone-placing") { s in s.phone.work = .placing(windows[1]) },
-            phoneSample("phone-notice") { s in
-                s.phone.placed = PhoneDesk.Placed(window: windows[3], zoom: 0)
-                s.phone.notice = .windowUnresponsive(app: windows[3].app)
+        let placed = PhoneDesk.Placed(window: windows[0], zoom: 2)
+        return [
+            phoneSample("phone-list") { _, _ in },
+            phoneSample("phone-placed") { s, _ in s.phone.placed = placed },
+            phoneSample("phone-placed-dark", dark: true) { s, _ in s.phone.placed = placed },
+            phoneSample("phone-opening") { s, _ in s.phone.work = .opening(running[2].app) },
+            phoneSample("phone-placing") { s, _ in s.phone.work = .placing(windows[1]) },
+            phoneSample("phone-quitting") { s, _ in s.phone.quitting = [2] },
+            phoneSample("phone-notice") { s, _ in
+                s.phone.placed = placed
+                s.phone.notice = .windowUnresponsive(app: windows[1].app)
             },
-            phoneSample("phone-notice-dark", dark: true) { s in s.phone.notice = .windowGone(app: windows[2].app) },
-            phoneSample("phone-empty", windows: []) { _ in },
-            phoneSample("phone-loading", windows: [], loaded: false) { _ in },
+            phoneSample("phone-quit-stalled-dark", dark: true) { s, _ in s.phone.notice = .quitStalled(app: "文本编辑", pid: 9) },
+            phoneSample("phone-all", tab: .all) { _, _ in },
+            phoneSample("phone-all-dark", dark: true, tab: .all) { s, _ in s.phone.placed = placed },
+            phoneSample("phone-search") { _, search in search.begin() },
+            phoneSample("phone-search-results") { _, search in
+                search.begin()
+                search.query = "s"
+            },
+            phoneSample("phone-search-none-dark", dark: true) { _, search in
+                search.begin()
+                search.query = "xyz"
+            },
+            phoneSample("phone-empty", running: []) { _, _ in },
+            phoneSample("phone-loading", running: [], loaded: false) { _, _ in },
         ]
     }
 
-    private static func phoneSample(_ name: String, dark: Bool = false, windows list: [WindowInfo] = windows, loaded: Bool = true,
-                                    _ configure: @escaping @MainActor (AppState) -> Void) -> RenderSample {
+    private static func phoneSample(_ name: String, dark: Bool = false, tab: PhoneHomeView.Tab = .running,
+                                    running list: [RunningApp] = running, loaded: Bool = true,
+                                    _ configure: @escaping @MainActor (AppState, PhoneSearch) -> Void) -> RenderSample {
         let size = ScreenFit.size(width: ScreenFit.baseWidth)
         return RenderSample(name: name, dark: dark, size: size) {
             let s = AppState()
             s.phone.screen = .ready(14)
-            configure(s)
-            return AnyView(PhoneHomeView(state: s, catalog: WindowCatalog(sample: list, loaded: loaded), intents: stub)
+            let search = PhoneSearch()
+            configure(s, search)
+            let catalog = AppCatalog(sample: list, installed: installed, loaded: loaded)
+            return AnyView(PhoneHomeView(state: s, catalog: catalog, search: search, intents: stub, tab: tab)
                 .frame(width: size.width, height: size.height))
         }
     }

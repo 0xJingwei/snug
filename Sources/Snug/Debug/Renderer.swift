@@ -65,6 +65,11 @@ final class RenderStub: AppIntents, PhoneIntents, Navigation {
     func setUpdateSource(_ source: UpdateSource) {}
     func openDownloadPage() {}
     func pull(_ window: WindowInfo) {}
+    func open(_ app: AppInfo) {}
+    func newWindow(_ app: RunningApp) {}
+    func quit(_ app: RunningApp) {}
+    func forceQuit(pid: Int32, app: String) {}
+    func dismissNotice() {}
     func showList() {}
     func returnToPlaced() {}
     func putBack() {}

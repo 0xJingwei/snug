@@ -98,13 +98,13 @@ public final class WindowService: WindowControl {
     }
 
     public func snapshot() async -> [WindowKey: CGRect] {
-        let apps = await Self.regularApps()
+        let pids = await MainActor.run { AppService.regular().map(\.processIdentifier) }
         return await run {
             var frames: [WindowKey: CGRect] = [:]
-            for app in apps {
-                for element in AX.respondingWindows(pid: app.pid) ?? [] where AX.isStandard(element) && !AX.flag(element, kAXMinimizedAttribute) {
+            for pid in pids {
+                for element in AX.respondingWindows(pid: pid) ?? [] where AX.isStandard(element) && !AX.flag(element, kAXMinimizedAttribute) {
                     guard let id = AX.windowID(element), let frame = AX.frame(element) else { continue }
-                    frames[WindowKey(pid: app.pid, id: id)] = frame
+                    frames[WindowKey(pid: pid, id: id)] = frame
                 }
             }
             return frames
@@ -145,23 +145,20 @@ public final class WindowService: WindowControl {
 
     // MARK: 窗口列表（手机屏上的卡片）
 
-    /// 所有可以放上手机屏的窗口：不管在哪块屏、哪个桌面空间，全屏、最小化的也算。最近用过的在前
-    public func list() async -> [WindowInfo] {
-        let apps = await Self.regularApps()
-        return await run {
+    /// 给在跑的 App 补上窗口：不管在哪块屏、哪个桌面空间，全屏、最小化的也算。App 和窗口都按最近用过排
+    public func withWindows(_ apps: [RunningApp]) async -> [RunningApp] {
+        await run {
             let now = ProcessInfo.processInfo.systemUptime
             let running = Set(apps.map(\.pid))
             self.remote.withLock { $0 = $0.filter { running.contains($0.key) } }
-            var windows: [WindowInfo] = []
-            for app in apps {
-                let all = AX.allWindows(pid: app.pid) { self.remoteWindows(pid: app.pid, now: now) }
-                for element in all where AX.isStandard(element) {
-                    guard let id = AX.windowID(element) else { continue }
-                    windows.append(WindowInfo(key: WindowKey(pid: app.pid, id: id), app: app.name, bundleID: app.bundleID,
-                                              title: WindowInfo.visibleTitle(AX.string(element, kAXTitleAttribute) ?? "")))
-                }
+            let filled = apps.map { app in
+                var app = app
+                app.windows = AX.allWindows(pid: app.pid) { self.remoteWindows(pid: app.pid, now: now) }
+                    .filter(AX.isStandard)
+                    .compactMap { element in AX.windowID(element).map { Self.info(element, key: WindowKey(pid: app.pid, id: $0), of: app.app) } }
+                return app
             }
-            return WindowList.ordered(windows, frontToBack: Self.frontToBack())
+            return AppList.ordered(filled, frontToBack: Self.frontToBack())
         }
     }
 
@@ -229,21 +226,6 @@ public final class WindowService: WindowControl {
             if let previous, now.matches(previous), placed { break }
         }
         return got
-    }
-
-    private struct App: Sendable {
-        let pid: pid_t
-        let name: String
-        let bundleID: String?
-    }
-
-    /// 普通 App（有 Dock 图标的），不含 Snug 自己
-    private static func regularApps() async -> [App] {
-        await MainActor.run {
-            NSWorkspace.shared.runningApplications
-                .filter { $0.activationPolicy == .regular && $0 != NSRunningApplication.current }
-                .map { App(pid: $0.processIdentifier, name: $0.localizedName ?? "未命名", bundleID: $0.bundleIdentifier) }
-        }
     }
 
     /// 进程号对应的 App（名字和资源库里的一致）

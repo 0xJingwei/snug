@@ -22,6 +22,11 @@ enum PhoneStyle {
     static let card = Color(nsColor: dynamic(light: .white,
                                              dark: NSColor(srgbRed: 0.110, green: 0.110, blue: 0.118, alpha: 1)))
     static var backgroundNSColor: NSColor { NSColor(background) }
+    /// iOS tertiarySystemFill：搜索框、分段控件的底
+    static let fill = Color(nsColor: dynamic(light: NSColor(srgbRed: 0.463, green: 0.463, blue: 0.502, alpha: 0.12),
+                                             dark: NSColor(srgbRed: 0.463, green: 0.463, blue: 0.502, alpha: 0.24)))
+    /// 分段控件选中的那一段：浅色白，深色 #636366
+    static let segment = Color(nsColor: dynamic(light: .white, dark: NSColor(srgbRed: 0.388, green: 0.388, blue: 0.4, alpha: 1)))
     /// iOS 的默认强调色（systemBlue）；不跟 Mac 的强调色走，手机上的 App 都是这个蓝
     static let tint = Color(nsColor: .systemBlue)
 

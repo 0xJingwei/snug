@@ -74,10 +74,16 @@ protocol AppIntents: AnyObject {
     func openDownloadPage()
 }
 
-/// 手机屏上的列表和小横条能发起的意图
+/// 手机屏上的 App 资源库和小横条能发起的意图
 @MainActor
 protocol PhoneIntents: AnyObject {
     func pull(_ window: WindowInfo)
+    /// 点一个 App：在跑且有窗口就放最近用过的那个，否则打开它、等新窗口出来再放（见 AppList.action）
+    func open(_ app: AppInfo)
+    func newWindow(_ app: RunningApp)
+    func quit(_ app: RunningApp)
+    func forceQuit(pid: Int32, app: String)
+    func dismissNotice()
     func showList()
     func returnToPlaced()
     func putBack()

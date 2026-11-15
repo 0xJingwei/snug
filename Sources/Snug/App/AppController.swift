@@ -16,6 +16,8 @@ final class AppController {
     let desk: PhoneDesk
     let windows = WindowService()
     let apps = AppService()
+    /// 手机屏 App 资源库的统一数据源
+    let catalog: AppCatalog
     /// 用户从菜单或设置里点「退出」（由 AppDelegate 接到退出流程上）
     var onQuitRequested: (() -> Void)?
 
@@ -38,6 +40,7 @@ final class AppController {
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
                          defaultZoom: store.config.zoomSteps)
+        catalog = AppCatalog(apps: apps, windows: windows)
         state.config = store.config
         state.accessibilityTrusted = AX.isTrusted
         updater = Updater(state: state)

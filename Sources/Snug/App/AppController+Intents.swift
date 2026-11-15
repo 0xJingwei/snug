@@ -118,6 +118,18 @@ extension AppController: AppIntents {
 
 extension AppController: PhoneIntents {
     func pull(_ window: WindowInfo) { desk.pull(window) }
+
+    func open(_ app: AppInfo) {
+        switch AppList.action(for: app, running: catalog.running) {
+        case .pull(let window): desk.pull(window)
+        case .open(let app): desk.open(app)
+        }
+    }
+
+    func newWindow(_ app: RunningApp) { desk.newWindow(app) }
+    func quit(_ app: RunningApp) { desk.quit(app) }
+    func forceQuit(pid: Int32, app: String) { desk.forceQuit(pid: pid, app: app) }
+    func dismissNotice() { desk.dismissNotice() }
     func showList() { desk.showList() }
     func returnToPlaced() { desk.returnToPlaced() }
     func putBack() { desk.putBack() }

@@ -35,13 +35,18 @@ public final class AppService: AppControl {
     /// 在跑的普通 App（有 Dock 图标的），不含 Snug 自己；窗口由 WindowService 补上
     @MainActor
     public func running() -> [RunningApp] {
-        NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0 != NSRunningApplication.current }
-            .compactMap { app in Self.info(for: app).map { RunningApp(pid: app.processIdentifier, app: $0, windows: []) } }
+        Self.regular().compactMap { app in Self.info(for: app).map { RunningApp(pid: app.processIdentifier, app: $0, windows: []) } }
     }
 
+    /// 普通 App（有 Dock 图标的），不含 Snug 自己。窗口快照也只拍这些
     @MainActor
-    public func icon(for app: AppInfo) -> NSImage {
+    static func regular() -> [NSRunningApplication] {
+        NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && $0 != NSRunningApplication.current }
+    }
+
+    /// 找不到 .app 时给系统的通用 App 图标
+    @MainActor
+    public static func icon(for app: AppInfo) -> NSImage {
         if let path = app.path ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleID)?.path {
             return NSWorkspace.shared.icon(forFile: path)
         }

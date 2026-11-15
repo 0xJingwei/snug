@@ -1,4 +1,4 @@
-// 窗口的身份与列表。窗口用「进程号 + 系统窗口编号」认（WindowKey）：编号在本次登录内唯一，
+// 窗口的身份。窗口用「进程号 + 系统窗口编号」认（WindowKey）：编号在本次登录内唯一，
 // 不会像辅助功能的窗口对象那样过期，也能写进还原记录，崩溃重启后照样找得到
 import CoreGraphics
 import Foundation
@@ -42,30 +42,6 @@ public struct WindowInfo: Equatable, Identifiable, Sendable {
     public static func visibleTitle(_ raw: String) -> String {
         let kept = raw.unicodeScalars.filter { $0.properties.generalCategory != .format || $0 == "\u{200D}" }
         return String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespaces)
-    }
-}
-
-public enum WindowList {
-    /// 不出现在列表里的 App：UU远程 自己（把遥控器放到手机屏上没有意义）
-    public static let excludedBundles: Set<String> = [UURemote.bundleID]
-
-    /// 按前后层次排：最近用过的在前，和 iPhone 的多任务界面一样。
-    /// frontToBack 是屏上窗口从前到后的编号；不在里面的（别的桌面上的）排最后，彼此保持原顺序
-    public static func ordered(_ windows: [WindowInfo], frontToBack: [UInt32]) -> [WindowInfo] {
-        let rank = Dictionary(frontToBack.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-        return windows
-            .filter { !excludedBundles.contains($0.bundleID ?? "") }
-            .enumerated()
-            .sorted { (rank[$0.element.key.id] ?? Int.max, $0.offset) < (rank[$1.element.key.id] ?? Int.max, $1.offset) }
-            .map(\.element)
-    }
-
-    /// 列表露着时窗口不换位置：手指正要点，卡片挪了位置就会点到别的窗口上（还原的窗口拿到焦点，下一次刷新就会跑到最前）。
-    /// 还在的按原来的顺序、用新的标题；新出现的接在后面；关掉的去掉。下次露出列表时才按前后层次重排
-    public static func keepingOrder(of shown: [WindowInfo], updatedWith fresh: [WindowInfo]) -> [WindowInfo] {
-        let latest = Dictionary(fresh.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
-        let known = Set(shown.map(\.key))
-        return shown.compactMap { latest[$0.key] } + fresh.filter { !known.contains($0.key) }
     }
 }
 
