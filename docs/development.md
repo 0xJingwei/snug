@@ -70,7 +70,7 @@ App 将本机已安装的 Snug 按同样方式切块，只按字节范围从最�
 | :--- | :--- |
 | `SnugCore` | 纯逻辑：连接判定与会话、手机屏调度 `PhoneDesk`、屏幕适配 `ScreenFit`、手势翻译 `TouchTranslator`、规格、还原记录、配置、日志、启动参数、更新包格式。系统能力抽象为协议，测试中使用假实现 |
 | `SnugSystem` | 系统层：`CGVirtualDisplay` 建屏与撤屏、辅助进程切换分辨率档位、辅助功能接口移动窗口、按进程发送字号快捷键、手势事件监听 |
-| `Snug` | 应用层：UU远程 感知、AppController、应用内更新 `Updater`、手机屏上的窗口列表与指示条、设置、关于、欢迎页、菜单栏 |
+| `Snug` | 应用层：UU远程 感知、AppController、应用内更新 `Updater`、手机屏上的 App 资源库与指示条、设置（通用、关于）、欢迎页、菜单栏 |
 
 发布工具 `SnugRelease` 只依赖 `SnugCore`，由 `scripts/snug` 调用。
 
