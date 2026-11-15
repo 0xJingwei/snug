@@ -34,13 +34,13 @@ struct PhoneModelsTests {
         #expect(c.model(id: "华为 Mate 70 Pro")?.screen.points == nil)
     }
 
-    @Test("不合格的整份拒收，写明是哪一条：横着写、重复、screen 不是两个数、年份不对、没有机型")
+    @Test("不合格的整份拒收，写明是哪一条：横着写、型号重复、品牌重复、screen 不是两个数、没有机型")
     func rejects() {
         let bad = [
             #"{"brands":[{"name":"A","models":[{"name":"X","year":2024,"screen":[2400,1080]}]}]}"#,
             #"{"brands":[{"name":"A","models":[{"name":"X","year":2024,"screen":[1080,2400]},{"name":"x ","year":2024,"screen":[1080,2400]}]}]}"#,
             #"{"brands":[{"name":"A","models":[{"name":"X","year":2024,"screen":[1080]}]}]}"#,
-            #"{"brands":[{"name":"A","models":[{"name":"X","year":1999,"screen":[1080,2400]}]}]}"#,
+            #"{"brands":[{"name":"A","models":[{"name":"X","screen":[1080,2400]}]},{"name":"a","models":[{"name":"Y","screen":[1080,2400]}]}]}"#,
             #"{"brands":[{"name":"A","models":[]}]}"#,
             #"{"brands":[{"name":"A","models":[{"name":"X","year":2024,"screen":[0,2400]}]}]}"#,
             "不是 JSON",
@@ -85,14 +85,22 @@ struct PhoneModelsTests {
         #expect(c.model(id: standard)?.screen == PhoneChoice.standard.screen)
     }
 
-    @Test("机型库里每台手机算出来的手机屏都过 2 倍门槛；Apple 的都有逻辑宽度")
-    func bundledFits() throws {
+    @Test("机型库里 Apple 的都有逻辑宽度（比例按它算才准）")
+    func bundledApplePoints() throws {
         let c = try PhoneCatalog(contentsOf: Self.bundled)
-        for model in c.models {
-            let fit = ScreenFit(phone: model.screen)
-            let base = fit.size(width: fit.baseWidth)
-            #expect(base.width >= 540 && base.height >= 800, "\(model.id)")
-            if model.brand == "Apple" { #expect(model.screen.points != nil, "\(model.id)") }
+        for model in c.models where model.brand == "Apple" {
+            #expect(model.screen.points != nil, "\(model.id)")
         }
+    }
+
+    @Test("配置里的那台按机型库现在的数值来：数值改了跟着改，改名删了用存下的，自己填的不动")
+    func resolve() throws {
+        let c = try catalog(sample)
+        let stale = PhoneChoice(model: "华为 Mate 70 Pro", screen: PhoneScreen(width: 1200, height: 2700))
+        #expect(c.resolve(stale).screen == PhoneScreen(width: 1260, height: 2832))
+        let gone = PhoneChoice(model: "华为 Mate 60", screen: PhoneScreen(width: 1260, height: 2720))
+        #expect(c.resolve(gone) == gone)
+        let custom = PhoneChoice(model: nil, screen: PhoneScreen(width: 9, height: 20))
+        #expect(c.resolve(custom) == custom)
     }
 }

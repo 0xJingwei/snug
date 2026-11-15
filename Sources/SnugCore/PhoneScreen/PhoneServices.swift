@@ -11,6 +11,8 @@ public protocol PhoneDisplays: AnyObject {
     func create(_ fit: ScreenFit) async throws -> DisplayID
     /// 换比例：在线换成 fit 的档位（屏不掉线、编号不变，UU 里选中的屏不丢），再切到基准宽度。换不成返回 false，屏还是原来的档位
     func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool
+    /// 这块屏登记的是哪个比例的档位（建屏或换比例时登记的）；不是这里建的返回 nil。选档只能在它的档位里选
+    func fit(_ id: DisplayID) -> ScreenFit?
     /// 释放，等它下线
     func retire(_ id: DisplayID) async
     /// 此刻是哪一档（2 倍模式的宽度，点）；不是 2 倍、或屏不在了返回 nil

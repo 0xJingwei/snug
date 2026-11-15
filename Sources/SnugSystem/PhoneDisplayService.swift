@@ -77,17 +77,22 @@ public final class PhoneDisplayService: PhoneDisplays {
             return false
         }
         fits[id] = fit
-        // 系统列出新档位要一会儿：列出来之前帮手找不到这一档
+        let started = ProcessInfo.processInfo.systemUptime
+        // 系统列出新档位要一会儿：列出来之前帮手找不到这一档。等不到也照样去切，切不成 setWidth 会记下来
         let base = fit.size(width: fit.baseWidth)
-        let deadline = ProcessInfo.processInfo.systemUptime + Self.modesTimeout
-        while !DisplayMode.hasHiDPI(id, width: Int(base.width), height: Int(base.height)),
-              ProcessInfo.processInfo.systemUptime < deadline {
-            try? await Task.sleep(for: .seconds(0.1))
+        let listed = await poll(timeout: Self.modesTimeout, every: 0.1) {
+            DisplayMode.hasHiDPI(id, width: Int(base.width), height: Int(base.height))
         }
-        Log.info("手机屏 #\(id) 换成 \(fit) 的档位（原来 \(from)）")
+        if !listed {
+            Log.warn("手机屏 #\(id) 换了模式表，\(Int(Self.modesTimeout)) 秒内系统没列出 \(fit) 的 2 倍模式，照样去切")
+        }
         await setWidth(id, fit.baseWidth)
+        let took = String(format: "%.1f", ProcessInfo.processInfo.systemUptime - started)
+        Log.info("手机屏 #\(id) 换成 \(fit) 的档位（\(took)s，原来 \(from)），现在 \(DisplayMode.describe(id))")
         return true
     }
+
+    public func fit(_ id: DisplayID) -> ScreenFit? { fits[id] }
 
     public func width(_ id: DisplayID) -> Int? {
         DisplayMode.hiDPIWidth(id)
@@ -105,12 +110,10 @@ public final class PhoneDisplayService: PhoneDisplays {
             Log.warn("手机屏 #\(id) 换不到 \(width) 宽（帮手退出码 \(status.map(String.init) ?? "启动失败")），现在 \(DisplayMode.describe(id))")
             return
         }
-        let switched = { self.width(id) == width && Screens.screen(for: id)?.frame.width == CGFloat(width) }
-        let deadline = ProcessInfo.processInfo.systemUptime + Self.screenUpdateTimeout
-        while !switched(), ProcessInfo.processInfo.systemUptime < deadline {
-            try? await Task.sleep(for: .seconds(0.05))
+        let switched = await poll(timeout: Self.screenUpdateTimeout, every: 0.05) {
+            self.width(id) == width && Screens.screen(for: id)?.frame.width == CGFloat(width)
         }
-        if switched() {
+        if switched {
             Log.info("手机屏 #\(id) 换到 \(width) 宽（原来 \(from)）")
         } else {
             Log.warn("手机屏 #\(id) 帮手说换到了 \(width) 宽，\(Int(Self.screenUpdateTimeout)) 秒内界面没认到，现在 \(DisplayMode.describe(id))")
@@ -165,10 +168,15 @@ public final class PhoneDisplayService: PhoneDisplays {
     }
 
     private func wait(_ id: DisplayID, online: Bool, timeout: TimeInterval) async -> Bool {
+        await poll(timeout: timeout, every: 0.25) { Self.isOnline(id) == online }
+    }
+
+    /// 每隔 every 秒看一次，done 成立就返回 true；到了 timeout 还不成立返回 false
+    private func poll(timeout: TimeInterval, every: Double, until done: () -> Bool) async -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + timeout
-        while Self.isOnline(id) != online {
+        while !done() {
             guard ProcessInfo.processInfo.systemUptime < deadline else { return false }
-            try? await Task.sleep(for: .seconds(0.25))
+            try? await Task.sleep(for: .seconds(every))
         }
         return true
     }

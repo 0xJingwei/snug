@@ -156,7 +156,7 @@ private struct PhoneMenu: View {
     @State private var customizing = false
 
     var body: some View {
-        Menu(current.model ?? "自定义 \(current.screen.sizeText)") {
+        Menu(current.customScreen.map { "\(current.title) \($0.sizeText)" } ?? current.title) {
             ForEach(phones.brands) { brand in
                 Menu(brand.name) {
                     ForEach(brand.models) { model in
@@ -198,7 +198,7 @@ private struct CustomScreenForm: View {
             }
             .textFieldStyle(.roundedBorder)
             .multilineTextAlignment(.center)
-            Text("屏幕分辨率或比例，如 1080 × 2400、9 × 20").font(.callout).foregroundStyle(.secondary)
+            Text(PhoneScreen.customHint).font(.callout).foregroundStyle(.secondary)
             HStack {
                 Spacer()
                 Button("取消") { done(nil) }
@@ -211,9 +211,9 @@ private struct CustomScreenForm: View {
         .padding(16)
         .frame(width: 280)
         .onAppear {
-            guard current.model == nil else { return }
-            width = current.screen.width
-            height = current.screen.height
+            guard let screen = current.customScreen else { return }
+            width = screen.width
+            height = screen.height
         }
     }
 }

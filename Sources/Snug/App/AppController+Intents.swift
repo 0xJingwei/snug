@@ -75,13 +75,8 @@ extension AppController: AppIntents {
     func openDownloadPage() { NSWorkspace.shared.open(state.config.updateSource.downloadPage) }
 
     func setPhone(_ phone: PhoneChoice) {
-        guard phone.screen.isValid else {
-            Log.warn("手机型号：\(phone.screen.width)×\(phone.screen.height) 不能用（要正数、按竖握写），没改")
-            return
-        }
         let fit = ScreenFit(phone: phone.screen)
-        guard changeConfig("手机型号 → \(phone.model ?? "自定义") \(phone.screen.width)×\(phone.screen.height)（手机屏 \(fit)）",
-                           { $0.phone = phone }) else { return }
+        guard changeConfig("手机型号 → \(phone.title) \(phone.screen.sizeText)（手机屏 \(fit)）", { $0.phone = phone }) else { return }
         desk.setFit(fit)
     }
 

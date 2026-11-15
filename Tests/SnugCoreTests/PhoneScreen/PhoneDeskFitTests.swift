@@ -95,6 +95,36 @@ struct PhoneDeskFitTests {
         #expect(rig.desk.state.work == nil)
     }
 
+    @Test("换不成之后照旧按屏上的比例选档：回到列表还是原来的基准宽度，新放的窗口也按原来的档位铺")
+    func afterFailure() async throws {
+        let rig = try Rig()
+        rig.displays.reshapeFails = true
+        await rig.ready()
+        rig.desk.setFit(iPhone8)
+        await rig.desk.idle()
+        await rig.pull(finder)
+        #expect(rig.windows.window(finder.key)?.frame == phoneArea)
+        rig.desk.showList()
+        await rig.desk.idle()
+        #expect(rig.displays.widths[101] == 540)
+        #expect(!rig.journal.all.contains("width 101 620"))
+    }
+
+    @Test("正在放窗口时换：不冲掉「正在打开」，放完轮到换比例时才写「正在调整」")
+    func whileBusy() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        var works: [PhoneDesk.Work?] = []
+        rig.desk.onChange = { works.append($0.work) }
+        rig.desk.pull(finder)
+        rig.desk.setFit(iPhone8)
+        #expect(rig.desk.state.work == .placing(finder))
+        await rig.desk.idle()
+        #expect(works.contains(.reshaping))
+        #expect(rig.desk.state.work == nil)
+        #expect(rig.windows.window(finder.key)?.frame == FakeDisplays.area(width: 620, fit: iPhone8))
+    }
+
     @Test("换不成：提示，屏还是原来的；下次加屏按新的建")
     func reshapeFails() async throws {
         let rig = try Rig()

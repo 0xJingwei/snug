@@ -35,17 +35,24 @@ final class AppController {
     init(paths: SnugPaths, previewPhone: Bool = false) {
         self.previewPhone = previewPhone
         store = ConfigStore(url: paths.config)
+        let phones = Self.loadPhones()
+        // 选过的机型按机型库现在的数值来（机型库改过数值时跟着改），建屏前就定下来
+        let phone = phones.resolve(store.config.phone)
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
         let windows = WindowService()
         let apps = AppService()
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
-                         defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: store.config.phone.screen))
+                         defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: phone.screen))
         catalog = AppCatalog(apps: apps, windows: windows)
         state.config = store.config
-        state.phones = Self.loadPhones()
+        state.phones = phones
         state.accessibilityTrusted = AX.isTrusted
         updater = Updater(state: state)
         AX.configureTimeout()
+        if phone != store.config.phone {
+            let old = store.config.phone.screen
+            changeConfig("手机型号 \(phone.title) 按机型库更新：\(old.sizeText) → \(phone.screen.sizeText)") { $0.phone = phone }
+        }
     }
 
     var now: Date { anchor.date.addingTimeInterval(ProcessInfo.processInfo.systemUptime - anchor.uptime) }

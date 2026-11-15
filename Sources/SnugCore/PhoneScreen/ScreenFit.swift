@@ -22,7 +22,8 @@ public struct ScreenFit: Equatable, Sendable, CustomStringConvertible {
     public static let ratioRange: ClosedRange<Double> = 1...2
     /// 像素上限：最宽一档按最长比例的 2 倍，所有比例共用。换比例时屏幕身份不变、不多出 ICC 文件（实测）
     public static let maxPixels = CGSize(width: maxWidth * 2, height: Int(Double(maxWidth) * ratioRange.upperBound) * 2)
-    /// UU 底部工具栏压住画面的高度（17 Pro Max 实测 268 像素，约 89 点），上下各让出这么多（点）
+    /// 画面上下各让出的高度（点）。UU 底部工具栏 17 Pro Max 实测约 268 像素（89 点）；取 91 让 17 Pro Max 正好是
+    /// 真机上调好的 540×950（取 89 是 540×955），多出的 2 点当余量
     static let uuInset: Double = 91
     /// 不知道逻辑宽度时（安卓、自己填的）按这个估：安卓手机默认显示大小下常见 360–412dp
     static let assumedPoints: Double = 400

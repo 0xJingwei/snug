@@ -1,6 +1,7 @@
 // 手机型号：手机屏的比例按用户的手机屏幕算（见 ScreenFit）。
-// 机型库 Assets/phone-models.json 是唯一的数据源，加机型只改它；这里只管解码、校验和查找。
-// 用户选的那一台连同屏幕数值一起存进配置（PhoneChoice）：机型库以后改名、删条目，已经选好的不受影响
+// 机型库 Assets/phone-models.json 是唯一的数据源，加机型、改数值都只改它；这里只管解码、校验和查找。
+// 用户选的那一台连同屏幕数值一起存进配置（PhoneChoice）：启动时按机型名跟机型库对一遍（resolve），数值改过的跟着改；
+// 机型库改名、删了这一条，就用存下的数值兜底
 import Foundation
 
 /// 一台手机的屏幕：竖握时的分辨率（像素，短边在前），Apple 设备另有逻辑宽度（点）。
@@ -34,7 +35,6 @@ public struct PhoneScreen: Codable, Hashable, Sendable {
 public struct PhoneModel: Hashable, Sendable, Identifiable {
     public let brand: String
     public let name: String
-    public let year: Int
     public let screen: PhoneScreen
 
     /// 品牌 + 型号，如「Apple iPhone 17 Pro Max」「华为 Mate 70 Pro」：选中后存进配置、显示在设置里的就是它
@@ -85,16 +85,18 @@ public struct PhoneCatalog: Equatable, Sendable {
             throw PhoneCatalogError("解不开：\(error)")
         }
         var seen = Set<String>()
+        var seenBrands = Set<String>()
         brands = try file.brands.map { brand in
             guard !brand.name.isEmpty, !brand.models.isEmpty else { throw PhoneCatalogError("品牌「\(brand.name)」没有名字或没有机型") }
+            // 界面按品牌名分节（ForEach 的 id），同一个品牌只能有一段
+            guard seenBrands.insert(Self.normalized(brand.name)).inserted else { throw PhoneCatalogError("品牌「\(brand.name)」重复了") }
             let models = try brand.models.map { entry in
                 guard entry.screen.count == 2 else { throw PhoneCatalogError("\(brand.name) \(entry.name)：screen 要写成 [宽, 高]") }
-                let model = PhoneModel(brand: brand.name, name: entry.name, year: entry.year,
+                let model = PhoneModel(brand: brand.name, name: entry.name,
                                        screen: PhoneScreen(width: entry.screen[0], height: entry.screen[1], points: entry.points))
                 guard !entry.name.isEmpty, model.screen.isValid else {
                     throw PhoneCatalogError("\(model.id)：分辨率要是正数、按竖握写（短边在前）")
                 }
-                guard (2007...2100).contains(entry.year) else { throw PhoneCatalogError("\(model.id)：年份 \(entry.year) 不对") }
                 guard seen.insert(Self.normalized(model.id)).inserted else { throw PhoneCatalogError("\(model.id)：重复了") }
                 return model
             }
@@ -110,6 +112,12 @@ public struct PhoneCatalog: Equatable, Sendable {
 
     public func model(id: String) -> PhoneModel? {
         models.first { $0.id == id }
+    }
+
+    /// 配置里存的那台按机型库现在的数值来：机型库改过这台的分辨率就用新的；改名、删了就用存下的数值（自己填的原样返回）
+    public func resolve(_ choice: PhoneChoice) -> PhoneChoice {
+        guard let id = choice.model, let model = model(id: id) else { return choice }
+        return PhoneChoice(model)
     }
 
     /// 按型号名、品牌名和别名找，不分大小写、不看空格（17promax、mate70、huawei mate 都行）。品牌整个命中就列出全部
@@ -130,7 +138,8 @@ public struct PhoneCatalog: Equatable, Sendable {
         text.lowercased().filter { !$0.isWhitespace }
     }
 
-    /// 文件的样子：{"brands": [{"name", "aliases"?, "models": [{"name", "year", "screen": [宽, 高], "points"?}]}]}
+    /// 文件的样子：{"brands": [{"name", "aliases"?, "models": [{"name", "screen": [宽, 高], "points"?, "year"}]}]}。
+    /// year 只给整理机型库的人看（按它从新到旧排），代码不读
     private struct File: Decodable {
         struct Brand: Decodable {
             let name: String
@@ -140,7 +149,6 @@ public struct PhoneCatalog: Equatable, Sendable {
 
         struct Model: Decodable {
             let name: String
-            let year: Int
             let screen: [Int]
             let points: Int?
         }

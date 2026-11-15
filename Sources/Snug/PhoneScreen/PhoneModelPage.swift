@@ -9,7 +9,7 @@ struct PhoneModelPage: View {
     @Bindable var pages: PhonePages
     let intents: any PhoneIntents
 
-    private var query: String { pages.query.trimmingCharacters(in: .whitespaces) }
+    private var query: String { pages.trimmedQuery }
     private var current: PhoneChoice { state.config.phone }
 
     var body: some View {
@@ -19,10 +19,7 @@ struct PhoneModelPage: View {
                 Text("手机型号").font(PhoneStyle.headline)
                 HStack {
                     Spacer()
-                    Button("完成") { pages.close() }
-                        .buttonStyle(.plain)
-                        .font(PhoneStyle.body.weight(.semibold))
-                        .foregroundStyle(PhoneStyle.tint)
+                    BarButton(title: "完成", bold: true) { pages.close() }
                 }
             }
             .frame(height: PhoneStyle.touchTarget)
@@ -32,13 +29,7 @@ struct PhoneModelPage: View {
                 VStack(alignment: .leading, spacing: 24) {
                     SearchBar {
                         TextField("搜索型号", text: $pages.query).textFieldStyle(.plain)
-                        if !pages.query.isEmpty {
-                            Button { pages.query = "" } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("清除")
-                        }
+                        ClearButton(text: $pages.query)
                     }
                     content
                 }
@@ -55,14 +46,17 @@ struct PhoneModelPage: View {
         LazyVStack(alignment: .leading, spacing: 24) {
             if query.isEmpty {
                 TitledSection("当前 · 手机屏按它调整比例") { CurrentPhone(choice: current) }
-                TitledSection("自定义") { CustomScreen(current: current) { choose(PhoneChoice(model: nil, screen: $0)) } }
             }
             if brands.isEmpty {
                 if query.isEmpty {
-                    EmptyState(symbol: "iphone.gen3", title: "未读取到机型库", text: "可在上方自定义分辨率")
+                    EmptyState(symbol: "iphone.gen3", title: "未读取到机型库", text: "可在下方自定义分辨率")
                 } else {
-                    EmptyState(symbol: "magnifyingglass", title: "无结果", text: "没有与「\(query)」相符的型号，可自定义分辨率")
+                    EmptyState(symbol: "magnifyingglass", title: "无结果", text: "没有与「\(query)」相符的型号")
                 }
+            }
+            // 搜不到时也给自定义：列表里没有的手机就靠它
+            if query.isEmpty || brands.isEmpty {
+                TitledSection("自定义") { CustomScreen(current: current) { choose(PhoneChoice(model: nil, screen: $0)) } }
             }
             ForEach(brands) { brand in
                 TitledSection(brand.name) {
@@ -120,16 +114,16 @@ private struct CustomScreen: View {
                 PillButton(title: "使用") { screen.map(use) }
                     .disabled(screen == nil)
             }
-            Text("屏幕分辨率或比例，如 1080 × 2400、9 × 20")
+            Text(PhoneScreen.customHint)
                 .font(PhoneStyle.label)
                 .foregroundStyle(.secondary)
         }
         .padding(16)
         .card()
         .onAppear {
-            guard current.model == nil else { return }
-            width = String(current.screen.width)
-            height = String(current.screen.height)
+            guard let screen = current.customScreen else { return }
+            width = String(screen.width)
+            height = String(screen.height)
         }
     }
 }
@@ -144,8 +138,7 @@ private struct NumberField: View {
             .font(PhoneStyle.body.monospacedDigit())
             .multilineTextAlignment(.center)
             .padding(.horizontal, 12)
-            .frame(height: 48)
-            .background(PhoneStyle.fill, in: RoundedRectangle(cornerRadius: PhoneStyle.cornerRadius, style: .continuous))
+            .fieldBackground()
             .onChange(of: text) { _, new in
                 let digits = new.filter(\.isASCII).filter(\.isNumber)
                 if digits != new { text = digits }

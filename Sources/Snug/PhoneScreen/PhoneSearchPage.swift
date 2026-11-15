@@ -11,7 +11,7 @@ struct SearchPage: View {
     let intents: any PhoneIntents
     @FocusState private var focused: Bool
 
-    private var query: String { search.query.trimmingCharacters(in: .whitespaces) }
+    private var query: String { search.trimmedQuery }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,18 +20,9 @@ struct SearchPage: View {
                     TextField("搜索 App", text: $search.query)
                         .textFieldStyle(.plain)
                         .focused($focused)
-                    if !search.query.isEmpty {
-                        Button { search.query = "" } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("清除")
-                    }
+                    ClearButton(text: $search.query)
                 }
-                Button("取消") { search.close() }
-                    .buttonStyle(.plain)
-                    .font(PhoneStyle.body)
-                    .foregroundStyle(PhoneStyle.tint)
+                BarButton(title: "取消") { search.close() }
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)

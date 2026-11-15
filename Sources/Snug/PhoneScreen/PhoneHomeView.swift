@@ -23,6 +23,8 @@ final class PhonePages {
     var query = ""
 
     var active: Bool { page != nil }
+    /// 去掉首尾空格的搜索词：只打了空格算没搜
+    var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
 
     func open(_ page: Page) {
         self.page = page
@@ -131,7 +133,8 @@ struct PhoneHomeView: View {
                 Image(systemName: "iphone.gen3")
                     .font(PhoneStyle.headline.weight(.regular))
                     .foregroundStyle(PhoneStyle.tint)
-                    .frame(width: PhoneStyle.touchTarget, height: PhoneStyle.touchTarget)
+                    // 图标贴右边距，和型号页的「完成」、搜索页的「取消」对齐
+                    .frame(width: PhoneStyle.touchTarget, height: PhoneStyle.touchTarget, alignment: .trailing)
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("手机型号")

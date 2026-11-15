@@ -73,12 +73,16 @@ extension LoginItemIssue {
 }
 
 extension PhoneChoice {
-    /// 设置里、手机屏上显示的名字
+    /// 名字：机型全名，自己填的叫「自定义」（分辨率另外写，见 sizeText）
     var title: String { model ?? "自定义" }
+    /// 自己填的分辨率：打开自定义输入时先填上它
+    var customScreen: PhoneScreen? { model == nil ? screen : nil }
 }
 
 extension PhoneScreen {
     var sizeText: String { "\(width) × \(height)" }
+    /// 自定义输入下面的说明（设置窗口、手机屏共用）
+    static let customHint = "屏幕分辨率或比例，如 1080 × 2400、9 × 20"
 }
 
 extension PhoneDesk.Notice {

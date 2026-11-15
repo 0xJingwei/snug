@@ -78,11 +78,15 @@ final class FakeDisplays: PhoneDisplays {
         return true
     }
 
+    func fit(_ id: DisplayID) -> ScreenFit? { fits[id] }
+
     func width(_ id: DisplayID) -> Int? { widths[id] }
 
+    /// 和真的一样：不是这块屏登记的档位就换不成（帮手找不到这一档）
     func setWidth(_ id: DisplayID, _ width: Int) async {
         journal.add("width \(id) \(width)")
-        if !switchFails { widths[id] = width }
+        guard !switchFails, fits[id]?.widths.contains(width) == true else { return }
+        widths[id] = width
     }
 
     func bounds(_ id: DisplayID) -> CGRect? {

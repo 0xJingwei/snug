@@ -1,5 +1,5 @@
 // 手机屏 App 资源库共用的小部件：App 图标、「图标 + 标题 + 副标题」一行、圆形和胶囊按钮、空状态、小标题分节、
-// 一组行的卡片、搜索框、卡片底。
+// 一组行的卡片、搜索框和它的清除键、导航栏右边的文字按钮、输入框底、卡片底。
 // 尺寸、颜色取自 PhoneStyle
 import AppKit
 import SwiftUI
@@ -119,7 +119,7 @@ struct TitledSection<Content: View>: View {
 /// 一组行放在一张卡片里，中间用分隔线隔开（分隔线从 dividerInset 起，和标题对齐）
 struct ListCard<Item: Identifiable, Row: View>: View {
     let items: [Item]
-    var dividerInset: CGFloat = 80
+    let dividerInset: CGFloat
     let row: (Item) -> Row
 
     init(_ items: [Item], dividerInset: CGFloat = 80, @ViewBuilder row: @escaping (Item) -> Row) {
@@ -151,8 +151,39 @@ struct SearchBar<Content: View>: View {
         }
         .font(PhoneStyle.body)
         .padding(.horizontal, 12)
-        .frame(height: 48)
-        .background(PhoneStyle.fill, in: RoundedRectangle(cornerRadius: PhoneStyle.cornerRadius, style: .continuous))
+        .fieldBackground()
+    }
+}
+
+/// 输入框里的清除键：有字时才出现
+struct ClearButton: View {
+    @Binding var text: String
+
+    var body: some View {
+        if !text.isEmpty {
+            Button { text = "" } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("清除")
+        }
+    }
+}
+
+/// 导航栏右边的文字按钮（取消、完成）：靠右对齐，点中的范围不小于 touchTarget
+struct BarButton: View {
+    let title: String
+    var bold = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(bold ? PhoneStyle.body.weight(.semibold) : PhoneStyle.body)
+                .foregroundStyle(PhoneStyle.tint)
+                .frame(minWidth: PhoneStyle.touchTarget, minHeight: PhoneStyle.touchTarget, alignment: .trailing)
+        }
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -160,5 +191,11 @@ extension View {
     /// 分组列表的卡片底（iOS 的 secondarySystemGroupedBackground）
     func card() -> some View {
         background(PhoneStyle.card, in: RoundedRectangle(cornerRadius: PhoneStyle.cornerRadius, style: .continuous))
+    }
+
+    /// 输入框的底（搜索框、数字框）：48 点高，iOS 的 tertiarySystemFill
+    func fieldBackground() -> some View {
+        frame(height: 48)
+            .background(PhoneStyle.fill, in: RoundedRectangle(cornerRadius: PhoneStyle.cornerRadius, style: .continuous))
     }
 }

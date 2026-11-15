@@ -127,7 +127,7 @@ public final class PhoneDesk {
     public var onTopologyChange: (() -> Void)?
     /// 设置里的默认字号级数
     public private(set) var defaultZoom: Int
-    /// 手机屏的比例和档位（按设置里的手机型号）
+    /// 设置里的手机型号对应的比例：加屏按它建，换比例以它为目标。屏上此刻是哪个比例见 screenFit
     public private(set) var fit: ScreenFit
 
     private let displays: any PhoneDisplays
@@ -141,8 +141,6 @@ public final class PhoneDesk {
 
     private var wanted = false
     private var display: (id: DisplayID, bornAt: TimeInterval)?
-    /// 这块屏现在是按哪个比例建的（换过就是换成的那个）
-    private var displayFit: ScreenFit?
     private var placement: Placement? {
         didSet { state.placed = placement.map { Placed(window: $0.window, zoom: $0.record.zoom) } }
     }
@@ -342,10 +340,14 @@ public final class PhoneDesk {
         guard fit != self.fit else { return }
         self.fit = fit
         guard state.screen != .off else { return }
+        // 闲着就马上盖上「正在调整」；别的动作在做时不冲掉它的状态，轮到换比例时再设（同 placeAsking）
+        if state.work == nil, display != nil { begin(.reshaping) }
         // 正在加的屏可能是按旧比例建的：一样排进队，轮到时核对
-        if display != nil { begin(.reshaping) }
         lane.run {
-            await self.reshape()
+            if let id = self.display?.id, self.displays.fit(id) != self.fit {
+                self.begin(.reshaping)
+                await self.reshape(id)
+            }
             if self.state.work == .reshaping { self.state.work = nil }
         }
     }
@@ -426,10 +428,8 @@ public final class PhoneDesk {
         let before = await windows.snapshot()
         onTopologyChange?()
         do {
-            let fit = self.fit
             let id = try await displays.create(fit)
             display = (id, timeline.now)
-            displayFit = fit
             failures = 0
             await windows.restore(before, except: placement?.window.key)
             state.screen = .ready(id)
@@ -489,29 +489,28 @@ public final class PhoneDesk {
         onTopologyChange?()
         await displays.retire(id)
         display = nil
-        displayFit = nil
         // 原本就在手机屏上的窗口（手机上新开的）交给系统安置：那块屏已经没了，放回原处只会落到屏幕外
         let elsewhere = gone.map { screen in before.filter { !screen.contains(CGPoint(x: $0.value.midX, y: $0.value.midY)) } }
         await windows.restore(elsewhere ?? before, except: placement?.window.key)
         Log.info("已撤掉手机屏 #\(id)")
     }
 
-    /// 把手机屏换成 fit 的比例。排在队里时可能又换了几次，只按最新的换；已经是这个比例（换回去了、刚按它建的）就不动
-    private func reshape() async {
-        let fit = self.fit
-        guard let id = display?.id, displayFit != fit else { return }
+    /// 把手机屏换成 fit 的比例（排在队里时又换了几次的，按最新的换）。
+    /// 换不成屏还是原来的档位，之后照旧按屏上的比例选档（screenFit），下次加屏按新的建
+    private func reshape(_ id: DisplayID) async {
         guard await displays.reshape(id, to: fit) else {
             Log.warn("手机屏 #\(id) 没能换成新比例（\(fit)），下次加屏时按新的建")
             state.notice = .reshapeFailed
             return
         }
-        displayFit = fit
-        Log.info("手机屏 #\(id) 换成新比例 \(fit)")
         guard var p = placement else { return }
         // 窗口要的档位按新比例从基准宽度重新找；忘掉上次挪完的样子，露出来时一定重新铺
         p.width = fit.baseWidth
         p.settled = nil
-        if !state.listVisible { await fill(&p, on: id) }
+        if !state.listVisible {
+            Log.info("换了比例，\(p.window.label) 按新比例重新铺满")
+            await fill(&p, on: id)
+        }
         placement = p
     }
 
@@ -534,9 +533,14 @@ public final class PhoneDesk {
 
     // MARK: 屏幕适配
 
+    /// 手机屏此刻的比例：选档只能在屏上登记的档位里选。换比例还没轮到、或者没换成时，它和 fit 不一样
+    private var screenFit: ScreenFit {
+        display.flatMap { displays.fit($0.id) } ?? fit
+    }
+
     /// 手机屏该用哪一档：露着列表（或没放窗口）是基准宽度，放着窗口是它那一档
     private var wantedWidth: Int {
-        guard let p = placement, !state.listVisible else { return fit.baseWidth }
+        guard let p = placement, !state.listVisible else { return screenFit.baseWidth }
         return p.width
     }
 
@@ -560,7 +564,7 @@ public final class PhoneDesk {
         // 窗口落到了区域原点、只是尺寸被夹住，才是 App 限定了最小尺寸；没挪过去（App 不认挪动）就不按它的大小换档
         let placed = abs(got.minX - area.minX) < 2 && abs(got.minY - area.minY) < 2
         guard placed, let current = displays.width(id) else { return got }
-        let width = fit.width(toFit: got.size, in: area.size, at: current)
+        let width = screenFit.width(toFit: got.size, in: area.size, at: current)
         guard width > current, width != p.width else { return got }
         Log.info("\(p.window.label) 在 \(current) 宽的手机屏上铺不满（App 限定了最小尺寸，实际 \(got.short)），换到 \(width) 宽")
         p.width = width
@@ -609,7 +613,7 @@ public final class PhoneDesk {
         // 先记账再动手。全屏的窗口这时读到的是全屏的位置，崩溃后按它放回再恢复全屏也对
         var next = Placement(window: window, record: PhoneRecord(
             window: window.key, app: window.app, label: window.label, original: originalFrame(look.frame, offPhone: id),
-            wasFullScreen: look.fullScreen, wasMinimized: look.minimized), width: fit.baseWidth)
+            wasFullScreen: look.fullScreen, wasMinimized: look.minimized), width: screenFit.baseWidth)
         guard write(next.record) else {
             state.notice = .recordUnwritable
             return
@@ -952,7 +956,7 @@ public final class PhoneDesk {
 
     /// 铺满了没有、用的哪一档。没铺满是 App 要的比最宽一档还宽，或者换档没成（见前面的日志）
     private func describeFill(_ got: CGRect, in area: CGRect?, width: Int) -> String {
-        let screen = width == fit.baseWidth ? "" : "（手机屏 \(width) 宽）"
+        let screen = width == screenFit.baseWidth ? "" : "（手机屏 \(width) 宽）"
         if let area, got.matches(area) { return "已铺满\(screen)" }
         return "没铺满\(screen)，实际 \(got.short)"
     }

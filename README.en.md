@@ -140,6 +140,8 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 3. **Switch windows**: tap the bottom indicator bar to return to the App Library; choosing another window returns the previous one to its place
 4. **End the session**: windows return to their original positions, text sizes are restored, and the phone screen is removed
 
+On first use, choose your phone model in the top-right corner of the App Library or in Snug's settings, and the phone screen fills your display without letterboxing. If your model isn't listed, enter its screen resolution
+
 ## 🔒 Isolation and Restoration
 
 - **Only the phone screen is touched**: the main display, other screens, and other windows are left alone
@@ -152,7 +154,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 | Limitation | Details |
 | :--- | :--- |
 | Relies on undocumented macOS APIs | May break after a major macOS update |
-| Screen proportions match the iPhone 17 Pro Max | Other models may show slight letterboxing; portrait only |
+| Model proportions are estimated | Calculated from the selected phone model; only the iPhone 17 Pro Max has been measured on device. Enter a custom resolution if it's off. Portrait only |
 | Smaller text in some windows | Apps such as System Settings and Safari enforce a minimum width; the phone screen switches to a resolution just wide enough, so the window still fills it and text shrinks accordingly (pinch to zoom) |
 | Text enlargement covers terminals and editors only | Ghostty, Terminal, iTerm2, VS Code, Cursor, and Zed; browsers are not adjusted |
 | Not an official NetEase product | Unaffiliated with UU Remote or its developer; UU Remote updates may affect some features |
