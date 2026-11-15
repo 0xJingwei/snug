@@ -14,6 +14,8 @@ enum ConnectionPhase: Equatable {
 @Observable
 final class AppState {
     var config = AppConfig()
+    /// 机型库（启动时读一次）：设置和手机屏上选手机型号用
+    var phones = PhoneCatalog.empty
     var connection = ConnectionPhase.idle
     /// 此刻同时连着的控制端
     var controllers: [String] = []
@@ -74,6 +76,8 @@ protocol AppIntents: AnyObject {
     func setUpdateSource(_ source: UpdateSource)
     /// 自动更新走不通时，打开所选更新源的下载地址
     func openDownloadPage()
+    /// 换手机型号：手机屏在就马上换成它的比例
+    func setPhone(_ phone: PhoneChoice)
 }
 
 /// 手机屏上的 App 资源库和小横条能发起的意图
@@ -91,6 +95,7 @@ protocol PhoneIntents: AnyObject {
     func returnToPlaced()
     func putBack()
     func zoom(by delta: Int)
+    func setPhone(_ phone: PhoneChoice)
 }
 
 /// 打开各个窗口

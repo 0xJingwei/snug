@@ -1,7 +1,7 @@
 // 手机屏上 Snug 自己的两块面板：盖满整块屏的 App 资源库，和窗口放上来后底部的小横条。
 // 跟着 PhoneDesk 的状态走：手机屏在才建，列表该露就露、该收就收，屏幕一变（含换档）就重新摆位置。
 // 面板不抢焦点（点它不会激活 Snug），所有桌面都在，盖在这块屏的菜单栏之上；
-// 只在搜索时临时接收键盘，搜完就还回去，手机上的键盘输入平时留给放上来的窗口
+// 只在搜索、选手机型号时临时接收键盘，用完就还回去，手机上的键盘输入平时留给放上来的窗口
 import AppKit
 import SnugCore
 import SnugSystem
@@ -11,7 +11,7 @@ import SwiftUI
 final class PhoneScreenWindows {
     private let state: AppState
     private let catalog: AppCatalog
-    private let search = PhoneSearch()
+    private let pages = PhonePages()
     private let intents: any PhoneIntents
     private var display: DisplayID?
     private var list: PhonePanel?
@@ -34,7 +34,7 @@ final class PhoneScreenWindows {
         withObservationTracking {
             _ = state.phone
             _ = state.streamedDisplay
-            _ = search.active
+            _ = pages.active
         } onChange: { [weak self] in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -61,11 +61,11 @@ final class PhoneScreenWindows {
         // 手机在看这块屏。不知道 UU 在推哪块屏（推流日志没读到）时当作在看
         let watching = state.streamedDisplay == nil || state.phoneInUse
         if showList { list.orderFrontRegardless() } else { list.orderOut(nil) }
-        // 手机离开了就结束搜索，交还键盘：不然在主屏上打的字会进到看不见的搜索框
-        if !showList || !watching { search.end() }
-        // 只在进入搜索那一下拿键盘：之后用户点了别的窗口，不能每次状态一变就抢回来
-        let entering = search.active && !list.acceptsKeys
-        list.acceptsKeys = search.active
+        // 手机离开了就关掉搜索、手机型号页，交还键盘：不然在主屏上打的字会进到看不见的输入框
+        if !showList || !watching { pages.close() }
+        // 只在打开页面那一下拿键盘：之后用户点了别的窗口，不能每次状态一变就抢回来
+        let entering = pages.active && !list.acceptsKeys
+        list.acceptsKeys = pages.active
         if entering { list.makeKey() }
         // 列表每轮要把所有 App 的窗口读一遍，还和搬窗口共用一条队：手机没在看手机屏就不刷
         if showList, watching {
@@ -79,7 +79,7 @@ final class PhoneScreenWindows {
 
     private func build(on id: DisplayID) {
         display = id
-        list = PhonePanel(content: FirstMouseHostingView(rootView: PhoneHomeView(state: state, catalog: catalog, search: search, intents: intents)))
+        list = PhonePanel(content: FirstMouseHostingView(rootView: PhoneHomeView(state: state, catalog: catalog, pages: pages, intents: intents)))
         let bar = HomeBarView()
         bar.onActivate = { [weak self] in self?.intents.showList() }
         homeBar = PhonePanel(content: bar)
@@ -88,7 +88,7 @@ final class PhoneScreenWindows {
 
     private func tearDown() {
         catalog.reset()
-        search.end()
+        pages.close()
         list?.orderOut(nil)
         homeBar?.orderOut(nil)
         list = nil
@@ -120,7 +120,7 @@ final class PhonePanel: NSPanel {
         contentView = content
     }
 
-    /// 平时点面板不让它变成键盘焦点：手机上的键盘输入要留给放上来的窗口；搜索时才打开
+    /// 平时点面板不让它变成键盘焦点：手机上的键盘输入要留给放上来的窗口；搜索、选手机型号时才打开
     var acceptsKeys = false {
         didSet {
             // 交还键盘：收起再摆回去才会让出焦点（resignKey 只是通知，调了也还是焦点）

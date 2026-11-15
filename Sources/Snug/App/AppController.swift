@@ -39,15 +39,32 @@ final class AppController {
         let windows = WindowService()
         let apps = AppService()
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
-                         defaultZoom: store.config.zoomSteps)
+                         defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: store.config.phone.screen))
         catalog = AppCatalog(apps: apps, windows: windows)
         state.config = store.config
+        state.phones = Self.loadPhones()
         state.accessibilityTrusted = AX.isTrusted
         updater = Updater(state: state)
         AX.configureTimeout()
     }
 
     var now: Date { anchor.date.addingTimeInterval(ProcessInfo.processInfo.systemUptime - anchor.uptime) }
+
+    /// 机型库随 App 发（Contents/Resources）。读不出来只是没有型号可选，还能自己填分辨率，手机屏照常按配置里的比例
+    private static func loadPhones() -> PhoneCatalog {
+        guard let url = Bundle.main.url(forResource: "phone-models", withExtension: "json") else {
+            Log.error("App 里没有机型库 phone-models.json（打包漏了），手机型号只能自己填")
+            return .empty
+        }
+        do {
+            let phones = try PhoneCatalog(contentsOf: url)
+            Log.info("机型库：\(phones.brands.count) 个品牌、\(phones.models.count) 款机型")
+            return phones
+        } catch {
+            Log.error("机型库读不出来（\(url.path)）：\(error)；手机型号只能自己填")
+            return .empty
+        }
+    }
 
     /// 开始监控。有权限的话先把上次没放回去的窗口放回去
     func start() {

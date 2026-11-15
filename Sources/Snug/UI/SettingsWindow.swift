@@ -1,5 +1,5 @@
 // 设置窗口：macOS App 设置窗口的标准做法，顶部工具栏标签页「通用 / 关于」（关于页见 AboutView）。
-// 通用页：顶部是此刻的状态，需要处理的问题每个一行、各带解决它的按钮；下面是总开关和两项微调，再下面是开机启动和权限。
+// 通用页：顶部是此刻的状态，需要处理的问题每个一行、各带解决它的按钮；下面是总开关、手机型号和两项微调，再下面是开机启动和权限。
 // 每行配 SF Symbols 图标，说明只用短词。只读 AppState，意图走 AppIntents
 import AppKit
 import SwiftUI
@@ -22,6 +22,12 @@ struct SettingsView: View {
                 Toggle(isOn: binding(state.config.phoneScreen, intents.setPhoneScreen)) {
                     SettingLabel("手机屏", detail: "UU远程 中增加竖屏", symbol: "iphone", tint: .blue)
                 }
+                LabeledContent {
+                    PhoneMenu(current: state.config.phone, phones: state.phones, choose: intents.setPhone)
+                } label: {
+                    SettingLabel("手机型号", detail: "手机屏按它调整比例", symbol: "iphone.gen3", tint: .indigo)
+                }
+                .disabled(!state.config.phoneScreen)
                 Toggle(isOn: binding(state.config.gestures, intents.setGestures)) {
                     SettingLabel("触控手势", detail: "单指滚动 · 长按选择 · 长按松开右键", symbol: "hand.draw.fill", tint: .orange)
                 }
@@ -138,6 +144,76 @@ private struct IssueRow: View {
                     if let detail = issue.text.detail { Text(detail).font(.callout).foregroundStyle(.secondary) }
                 }
             }
+        }
+    }
+}
+
+/// 手机型号：按品牌分组的菜单，选中的打勾；最后一项自己填分辨率（弹出小窗）。和手机屏上的「手机型号」页是同一份配置
+private struct PhoneMenu: View {
+    let current: PhoneChoice
+    let phones: PhoneCatalog
+    let choose: @MainActor (PhoneChoice) -> Void
+    @State private var customizing = false
+
+    var body: some View {
+        Menu(current.model ?? "自定义 \(current.screen.sizeText)") {
+            ForEach(phones.brands) { brand in
+                Menu(brand.name) {
+                    ForEach(brand.models) { model in
+                        Toggle(model.name, isOn: Binding(get: { model.id == current.model },
+                                                         set: { _ in choose(PhoneChoice(model)) }))
+                    }
+                }
+            }
+            if !phones.brands.isEmpty { Divider() }
+            Toggle("自定义分辨率…", isOn: Binding(get: { current.model == nil }, set: { _ in customizing = true }))
+        }
+        .fixedSize()
+        .popover(isPresented: $customizing, arrowEdge: .bottom) {
+            CustomScreenForm(current: current) { screen in
+                customizing = false
+                if let screen { choose(PhoneChoice(model: nil, screen: screen)) }
+            }
+        }
+    }
+}
+
+/// 自己填分辨率：宽 × 高，横着填也行，比例也行（见 PhoneScreen.custom）
+private struct CustomScreenForm: View {
+    let current: PhoneChoice
+    /// 填好的分辨率；取消为 nil
+    let done: (PhoneScreen?) -> Void
+    @State private var width: Int?
+    @State private var height: Int?
+
+    private var screen: PhoneScreen? { PhoneScreen.custom(width, height) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("自定义分辨率").font(.headline)
+            HStack(spacing: 8) {
+                TextField("宽", value: $width, format: .number.grouping(.never))
+                Text("×").foregroundStyle(.secondary)
+                TextField("高", value: $height, format: .number.grouping(.never))
+            }
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.center)
+            Text("屏幕分辨率或比例，如 1080 × 2400、9 × 20").font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("取消") { done(nil) }
+                    .keyboardShortcut(.cancelAction)
+                Button("使用") { done(screen) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(screen == nil)
+            }
+        }
+        .padding(16)
+        .frame(width: 280)
+        .onAppear {
+            guard current.model == nil else { return }
+            width = current.screen.width
+            height = current.screen.height
         }
     }
 }

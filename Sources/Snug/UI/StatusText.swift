@@ -72,6 +72,15 @@ extension LoginItemIssue {
     }
 }
 
+extension PhoneChoice {
+    /// 设置里、手机屏上显示的名字
+    var title: String { model ?? "自定义" }
+}
+
+extension PhoneScreen {
+    var sizeText: String { "\(width) × \(height)" }
+}
+
 extension PhoneDesk.Notice {
     /// 手机屏列表顶部的提示：出了什么事，和接下来怎么办。不出现技术词
     var text: StatusText {
@@ -84,6 +93,7 @@ extension PhoneDesk.Notice {
         case .noNewWindow(let app): StatusText(headline: "\(app) 无法新建窗口", detail: "可点 App 打开已有窗口")
         case .noWindow(let app): StatusText(headline: "未找到 \(app) 的窗口", detail: "App 已打开，但没有可显示的窗口")
         case .quitStalled(let app, _): StatusText(headline: "\(app) 未退出", detail: "强制退出将丢失未存储的内容")
+        case .reshapeFailed: StatusText(headline: "屏幕比例未能调整", detail: "下次连接时生效")
         }
     }
 }

@@ -4,24 +4,9 @@ import AppKit
 import SnugCore
 import SwiftUI
 
-/// 搜索状态。搜索时列表面板临时接收键盘（见 PhoneScreenWindows）
-@MainActor
-@Observable
-final class PhoneSearch {
-    private(set) var active = false
-    var query = ""
-
-    func begin() { active = true }
-
-    func end() {
-        active = false
-        query = ""
-    }
-}
-
 struct SearchPage: View {
     let catalog: AppCatalog
-    @Bindable var search: PhoneSearch
+    @Bindable var search: PhonePages
     let phone: PhoneDesk.State
     let intents: any PhoneIntents
     @FocusState private var focused: Bool
@@ -43,7 +28,7 @@ struct SearchPage: View {
                         .accessibilityLabel("清除")
                     }
                 }
-                Button("取消") { search.end() }
+                Button("取消") { search.close() }
                     .buttonStyle(.plain)
                     .font(PhoneStyle.body)
                     .foregroundStyle(PhoneStyle.tint)
@@ -97,7 +82,7 @@ struct SearchPage: View {
         let quitting = running.map { phone.quitting.contains($0.pid) } ?? false
         let subtitle = quitting ? "正在退出" : running?.windowSummary ?? "未打开"
         return ResultRow(icon: catalog.icon(for: app), title: app.name, subtitle: subtitle) {
-            search.end()
+            search.close()
             intents.open(app)
         }
         .disabled(quitting)
@@ -105,31 +90,10 @@ struct SearchPage: View {
 
     private func windowRow(_ window: WindowInfo) -> some View {
         ResultRow(icon: catalog.icon(for: window), title: window.displayTitle, subtitle: window.app) {
-            search.end()
+            search.close()
             intents.pull(window)
         }
         .disabled(phone.quitting.contains(window.key.pid) || phone.closing.contains(window.key))
-    }
-}
-
-/// 一组结果放在一张卡片里，中间用分隔线隔开
-private struct ListCard<Item: Identifiable, Row: View>: View {
-    let items: [Item]
-    let row: (Item) -> Row
-
-    init(_ items: [Item], @ViewBuilder row: @escaping (Item) -> Row) {
-        self.items = items
-        self.row = row
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                if index > 0 { Divider().padding(.leading, 80) }
-                row(item)
-            }
-        }
-        .card()
     }
 }
 

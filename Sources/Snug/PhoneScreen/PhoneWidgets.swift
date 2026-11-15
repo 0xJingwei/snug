@@ -1,4 +1,5 @@
-// 手机屏 App 资源库共用的小部件：App 图标、「图标 + 标题 + 副标题」一行、圆形和胶囊按钮、空状态、小标题分节、搜索框、卡片底。
+// 手机屏 App 资源库共用的小部件：App 图标、「图标 + 标题 + 副标题」一行、圆形和胶囊按钮、空状态、小标题分节、
+// 一组行的卡片、搜索框、卡片底。
 // 尺寸、颜色取自 PhoneStyle
 import AppKit
 import SwiftUI
@@ -112,6 +113,29 @@ struct TitledSection<Content: View>: View {
                 .padding(.leading, 4)
             content
         }
+    }
+}
+
+/// 一组行放在一张卡片里，中间用分隔线隔开（分隔线从 dividerInset 起，和标题对齐）
+struct ListCard<Item: Identifiable, Row: View>: View {
+    let items: [Item]
+    var dividerInset: CGFloat = 80
+    let row: (Item) -> Row
+
+    init(_ items: [Item], dividerInset: CGFloat = 80, @ViewBuilder row: @escaping (Item) -> Row) {
+        self.items = items
+        self.dividerInset = dividerInset
+        self.row = row
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                if index > 0 { Divider().padding(.leading, dividerInset) }
+                row(item)
+            }
+        }
+        .card()
     }
 }
 

@@ -74,6 +74,17 @@ extension AppController: AppIntents {
 
     func openDownloadPage() { NSWorkspace.shared.open(state.config.updateSource.downloadPage) }
 
+    func setPhone(_ phone: PhoneChoice) {
+        guard phone.screen.isValid else {
+            Log.warn("手机型号：\(phone.screen.width)×\(phone.screen.height) 不能用（要正数、按竖握写），没改")
+            return
+        }
+        let fit = ScreenFit(phone: phone.screen)
+        guard changeConfig("手机型号 → \(phone.model ?? "自定义") \(phone.screen.width)×\(phone.screen.height)（手机屏 \(fit)）",
+                           { $0.phone = phone }) else { return }
+        desk.setFit(fit)
+    }
+
     // MARK: 退出收尾
 
     /// 停止监控，放回窗口、撤掉手机屏。timeout 内没收完也照样回调：手机屏会随进程退出消失，

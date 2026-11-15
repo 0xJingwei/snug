@@ -39,6 +39,10 @@ enum RenderSamples {
                 s.streamedDisplay = 14
                 s.phone.placed = PhoneDesk.Placed(window: windows[0], zoom: 2)
             },
+            setting("settings-custom-phone") { s in
+                connected(s)
+                s.config.phone = PhoneChoice(model: nil, screen: PhoneScreen(width: 1080, height: 2400))
+            },
             setting("settings-update-available") { s in s.update.check = .available(sampleFeed) },
             setting("settings-update-too-old") { s in s.update.problem = .tooOld },
             setting("settings-trouble") { s in
@@ -55,6 +59,7 @@ enum RenderSamples {
             let s = AppState()
             s.accessibilityTrusted = true
             s.launchAtLogin = true
+            s.phones = phones
             configure(s)
             return AnyView(SettingsView(state: s, intents: stub, navigation: stub))
         }
@@ -190,6 +195,29 @@ enum RenderSamples {
         RunningApp(pid: 5, app: app("com.apple.Terminal", "终端"), windows: [windows[3]]),
     ]
 
+    /// 样例机型库：几个品牌各几台（真的机型库在 Assets/phone-models.json）
+    private static let phones: PhoneCatalog = {
+        let json = """
+        {"brands": [
+          {"name": "Apple", "models": [
+            {"name": "iPhone 17 Pro Max", "year": 2025, "screen": [1320, 2868], "points": 440},
+            {"name": "iPhone 17 Pro", "year": 2025, "screen": [1206, 2622], "points": 402},
+            {"name": "iPhone 17", "year": 2025, "screen": [1206, 2622], "points": 402},
+            {"name": "iPhone Air", "year": 2025, "screen": [1260, 2736], "points": 420}
+          ]},
+          {"name": "华为", "aliases": ["HUAWEI"], "models": [
+            {"name": "Mate 70 Pro", "year": 2024, "screen": [1260, 2832]},
+            {"name": "Pura 80 Ultra", "year": 2025, "screen": [1276, 2848]}
+          ]},
+          {"name": "小米", "aliases": ["Xiaomi"], "models": [
+            {"name": "17 Pro Max", "year": 2025, "screen": [1200, 2608]},
+            {"name": "15 Ultra", "year": 2025, "screen": [1440, 3200]}
+          ]}
+        ]}
+        """
+        return (try? PhoneCatalog(json: Data(json.utf8))) ?? .empty
+    }()
+
     private static var phone: [RenderSample] {
         let placed = PhoneDesk.Placed(window: windows[0], zoom: 2)
         return [
@@ -212,14 +240,31 @@ enum RenderSamples {
             phoneSample("phone-quit-stalled-dark", dark: true) { s, _ in s.phone.notice = .quitStalled(app: "文本编辑", pid: 9) },
             phoneSample("phone-all", tab: .all) { _, _ in },
             phoneSample("phone-all-dark", dark: true, tab: .all) { s, _ in s.phone.placed = placed },
-            phoneSample("phone-search") { _, search in search.begin() },
-            phoneSample("phone-search-results") { _, search in
-                search.begin()
-                search.query = "s"
+            phoneSample("phone-search") { _, pages in pages.open(.search) },
+            phoneSample("phone-search-results") { _, pages in
+                pages.open(.search)
+                pages.query = "s"
             },
-            phoneSample("phone-search-none-dark", dark: true) { _, search in
-                search.begin()
-                search.query = "xyz"
+            phoneSample("phone-search-none-dark", dark: true) { _, pages in
+                pages.open(.search)
+                pages.query = "xyz"
+            },
+            phoneSample("phone-model") { _, pages in pages.open(.phoneModel) },
+            phoneSample("phone-model-custom-dark", dark: true) { s, pages in
+                s.config.phone = PhoneChoice(model: nil, screen: PhoneScreen(width: 1080, height: 2400))
+                pages.open(.phoneModel)
+            },
+            phoneSample("phone-model-search") { _, pages in
+                pages.open(.phoneModel)
+                pages.query = "17 pro"
+            },
+            phoneSample("phone-model-none-dark", dark: true) { _, pages in
+                pages.open(.phoneModel)
+                pages.query = "nokia"
+            },
+            phoneSample("phone-reshaping") { s, _ in
+                s.config.phone = PhoneChoice(phones.models[4])
+                s.phone.work = .reshaping
             },
             phoneSample("phone-empty", running: []) { _, _ in },
             phoneSample("phone-loading", running: [], loaded: false) { _, _ in },
@@ -228,15 +273,16 @@ enum RenderSamples {
 
     private static func phoneSample(_ name: String, dark: Bool = false, tab: PhoneHomeView.Tab = .running,
                                     confirming: PhoneHomeView.Confirm? = nil, running list: [RunningApp] = running, loaded: Bool = true,
-                                    _ configure: @escaping @MainActor (AppState, PhoneSearch) -> Void) -> RenderSample {
-        let size = ScreenFit.size(width: ScreenFit.baseWidth)
+                                    _ configure: @escaping @MainActor (AppState, PhonePages) -> Void) -> RenderSample {
+        let size = ScreenFit.standard.size(width: ScreenFit.standard.baseWidth)
         return RenderSample(name: name, dark: dark, size: size) {
             let s = AppState()
             s.phone.screen = .ready(14)
-            let search = PhoneSearch()
-            configure(s, search)
+            s.phones = phones
+            let pages = PhonePages()
+            configure(s, pages)
             let catalog = AppCatalog(sample: list, installed: installed, loaded: loaded)
-            return AnyView(PhoneHomeView(state: s, catalog: catalog, search: search, intents: stub, tab: tab, confirming: confirming)
+            return AnyView(PhoneHomeView(state: s, catalog: catalog, pages: pages, intents: stub, tab: tab, confirming: confirming)
                 .frame(width: size.width, height: size.height))
         }
     }

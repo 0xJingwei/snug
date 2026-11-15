@@ -1,30 +1,55 @@
 // 手机屏上的「App 资源库」：盖住整块手机屏（连这块屏上的菜单栏一起），看起来像手机上的原生 App。
-// 顶部固定一行返回键（放着窗口时才有，那一行一直留着，有没有返回键内容都不跳）；
+// 顶部固定一行：左边返回键（放着窗口时才有，那一行一直留着，有没有返回键内容都不跳），右边「手机型号」；
 // 标题和搜索框跟着列表滚走，分段控件「运行中 / 全部」滚到顶就停住、一直看得见，滚回顶部时页眉完整恢复。
 // - 运行中：在跑的 App，窗口挂在各自的 App 下（见 PhoneAppCard）。放着窗口时它的 App 单列在最上面「当前 App」，其余在「其他 App」
 // - 全部：本机所有 App 的图标网格，按字典序，正在运行的下方有圆点
-// - 搜索：见 PhoneSearchPage
-// - 正在打开、正在放：整屏讲明是哪个 App、哪个窗口；出了问题：顶部写明出了什么事、怎么办
+// - 搜索：见 PhoneSearchPage；手机型号：见 PhoneModelPage
+// - 正在打开、正在放、正在调整比例：整屏讲明是哪个 App、哪个窗口、哪台手机；出了问题：顶部写明出了什么事、怎么办
 // 每次回到列表、每次出了问题都从最上面看起。文字只用短词，图标全用 SF Symbols
 import AppKit
 import SnugCore
 import SwiftUI
 
+/// 盖在首页上的页面：搜索、手机型号。打开着时列表面板临时接收键盘（见 PhoneScreenWindows），
+/// 两个页都有输入框，query 是打开着的那一页的搜索词
+@MainActor
+@Observable
+final class PhonePages {
+    enum Page {
+        case search, phoneModel
+    }
+
+    private(set) var page: Page?
+    var query = ""
+
+    var active: Bool { page != nil }
+
+    func open(_ page: Page) {
+        self.page = page
+        query = ""
+    }
+
+    func close() {
+        page = nil
+        query = ""
+    }
+}
+
 struct PhoneHomeView: View {
     let state: AppState
     let catalog: AppCatalog
-    let search: PhoneSearch
+    let pages: PhonePages
     let intents: any PhoneIntents
 
     @State private var tab: Tab
     @State private var confirming: Confirm?
 
     /// tab、confirming：渲染样例用
-    init(state: AppState, catalog: AppCatalog, search: PhoneSearch, intents: any PhoneIntents,
+    init(state: AppState, catalog: AppCatalog, pages: PhonePages, intents: any PhoneIntents,
          tab: Tab = .running, confirming: Confirm? = nil) {
         self.state = state
         self.catalog = catalog
-        self.search = search
+        self.pages = pages
         self.intents = intents
         _tab = State(initialValue: tab)
         _confirming = State(initialValue: confirming)
@@ -48,12 +73,12 @@ struct PhoneHomeView: View {
 
     var body: some View {
         ZStack {
-            if search.active {
-                SearchPage(catalog: catalog, search: search, phone: phone, intents: intents)
-            } else {
-                home
+            switch pages.page {
+            case .search: SearchPage(catalog: catalog, search: pages, phone: phone, intents: intents)
+            case .phoneModel: PhoneModelPage(state: state, pages: pages, intents: intents)
+            case nil: home
             }
-            if let busy = BusyView.Content(phone.work, catalog: catalog) {
+            if let busy = BusyView.Content(phone.work, catalog: catalog, phone: state.config.phone) {
                 BusyView(content: busy).transition(.opacity)
             }
         }
@@ -62,7 +87,7 @@ struct PhoneHomeView: View {
         .onChange(of: phone.listVisible) { confirming = nil }
         .onChange(of: phone.work) { confirming = nil }
         .onChange(of: tab) { confirming = nil }
-        .onChange(of: search.active) { confirming = nil }
+        .onChange(of: pages.active) { confirming = nil }
     }
 
     private var home: some View {
@@ -97,14 +122,20 @@ struct PhoneHomeView: View {
 
     /// 返回键那一行一直留着：有没有返回键，下面的内容都不跳
     private var backRow: some View {
-        Group {
+        HStack {
             if let placed = phone.placed {
                 BackButton(app: placed.window.app) { intents.returnToPlaced() }
-            } else {
-                Color.clear
             }
+            Spacer(minLength: 12)
+            Button { pages.open(.phoneModel) } label: {
+                Image(systemName: "iphone.gen3")
+                    .font(PhoneStyle.headline.weight(.regular))
+                    .foregroundStyle(PhoneStyle.tint)
+                    .frame(width: PhoneStyle.touchTarget, height: PhoneStyle.touchTarget)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("手机型号")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: PhoneStyle.touchTarget)
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -113,7 +144,7 @@ struct PhoneHomeView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("App").font(PhoneStyle.largeTitle)
-            Button { search.begin() } label: {
+            Button { pages.open(.search) } label: {
                 SearchBar { Text("搜索 App").foregroundStyle(.secondary) }
             }
             .buttonStyle(PressableStyle())
@@ -280,22 +311,31 @@ private struct AllApps: View {
     }
 }
 
-// MARK: 正在打开、正在放
+// MARK: 正在打开、正在放、正在调整比例
 
-/// 整屏讲明正在打开哪个 App、放哪个窗口。窗口挪好列表就收起，失败了回到列表、顶部写明原因
+/// 整屏讲明正在打开哪个 App、放哪个窗口、按哪台手机调整比例。窗口挪好列表就收起，失败了回到列表、顶部写明原因
 private struct BusyView: View {
     struct Content: Equatable {
-        let icon: NSImage
+        enum Art: Equatable {
+            case icon(NSImage)
+            case symbol(String)
+        }
+
+        let art: Art
         let title: String
         let subtitle: String?
+        let status: String
 
         @MainActor
-        init?(_ work: PhoneDesk.Work?, catalog: AppCatalog) {
+        init?(_ work: PhoneDesk.Work?, catalog: AppCatalog, phone: PhoneChoice) {
             switch work {
             case .opening(let app):
-                (icon, title, subtitle) = (catalog.icon(for: app), app.name, nil)
+                (art, title, subtitle, status) = (.icon(catalog.icon(for: app)), app.name, nil, "正在打开")
             case .placing(let window):
-                (icon, title, subtitle) = (catalog.icon(for: window), window.app, window.title.isEmpty ? nil : window.title)
+                (art, title, subtitle, status) = (.icon(catalog.icon(for: window)), window.app,
+                                                  window.title.isEmpty ? nil : window.title, "正在打开")
+            case .reshaping:
+                (art, title, subtitle, status) = (.symbol("iphone.gen3"), phone.title, phone.screen.sizeText, "正在调整屏幕比例")
             default:
                 return nil
             }
@@ -306,7 +346,16 @@ private struct BusyView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            AppIcon(image: content.icon, size: PhoneStyle.iconSize * 2)
+            switch content.art {
+            case .icon(let image):
+                AppIcon(image: image, size: PhoneStyle.iconSize * 2)
+            case .symbol(let name):
+                Image(systemName: name)
+                    .font(.system(size: PhoneStyle.iconSize * 1.5, weight: .light))
+                    .foregroundStyle(.secondary)
+                    .frame(width: PhoneStyle.iconSize * 2, height: PhoneStyle.iconSize * 2)
+                    .accessibilityHidden(true)
+            }
             VStack(spacing: 4) {
                 Text(content.title).font(PhoneStyle.headline).lineLimit(1)
                 if let subtitle = content.subtitle {
@@ -315,7 +364,7 @@ private struct BusyView: View {
             }
             VStack(spacing: 8) {
                 ProgressView()
-                Text("正在打开").font(PhoneStyle.label).foregroundStyle(.secondary)
+                Text(content.status).font(PhoneStyle.label).foregroundStyle(.secondary)
             }
             .padding(.top, 16)
         }

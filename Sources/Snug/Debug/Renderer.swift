@@ -65,6 +65,7 @@ final class RenderStub: AppIntents, PhoneIntents, Navigation {
     func installUpdate() {}
     func setUpdateSource(_ source: UpdateSource) {}
     func openDownloadPage() {}
+    func setPhone(_ phone: PhoneChoice) {}
     func pull(_ window: WindowInfo) {}
     func open(_ app: AppInfo) {}
     func newWindow(_ app: RunningApp) {}
