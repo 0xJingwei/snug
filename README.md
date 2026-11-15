@@ -16,8 +16,8 @@
 
 <br>
 
-<img src="https://dl.zephyrxiang.com/snug/media/phone-window-list.7edc548b.png" width="30%" alt="窗口列表"> <img src="https://dl.zephyrxiang.com/snug/media/phone-demo.2cee4e81.webp" width="30%" alt="实机演示：打开窗口、弹出键盘输入命令、恢复会话、单指滚动、回到列表"> <img src="https://dl.zephyrxiang.com/snug/media/phone-context-menu.997dd70f.png" width="30%" alt="长按调出右键菜单">
-<p><sub>窗口列表 · 实机演示 · 长按调出右键菜单</sub><br><sub>▶ <a href="https://dl.zephyrxiang.com/snug/media/phone-demo.a97e46d1.mp4">观看高清演示视频</a></sub></p>
+<img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.989b66ef.png" width="30%" alt="App 资源库：运行中的 App 与各自的窗口"> <img src="https://dl.zephyrxiang.com/snug/media/phone-demo.2cee4e81.webp" width="30%" alt="实机演示：打开窗口、弹出键盘输入命令、恢复会话、单指滚动、回到列表"> <img src="https://dl.zephyrxiang.com/snug/media/phone-context-menu.997dd70f.png" width="30%" alt="长按调出右键菜单">
+<p><sub>App 资源库 · 实机演示 · 长按调出右键菜单</sub><br><sub>▶ <a href="https://dl.zephyrxiang.com/snug/media/phone-demo.a97e46d1.mp4">观看高清演示视频</a></sub></p>
 
 </div>
 
@@ -79,6 +79,8 @@ UU远程 手机端沿用触控板的手势逻辑；Snug 在手机屏上按手机
 - **全部**：本机所有 App 的图标网格，按名称排序；尚未运行的 App 轻点即打开
 - **搜索**：匹配 App 名称与窗口标题，支持中文、英文、拼音全拼与首字母，如「bwl」即可找到「备忘录」
 
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.989b66ef.png" width="30%" alt="运行中：放在手机屏上的窗口所属的 App 单列在最上方"> <img src="https://dl.zephyrxiang.com/snug/media/phone-all-apps.a0c37ccd.png" width="30%" alt="全部：本机所有 App 的图标网格"> <img src="https://dl.zephyrxiang.com/snug/media/phone-search.78e93e6c.png" width="30%" alt="搜索：输入 bwl 找到备忘录"><br><sub>运行中 · 全部 · 搜索拼音首字母</sub></p>
+
 | 操作 | 方式 |
 | :--- | :--- |
 | 打开窗口 | 轻点窗口，即铺满手机屏；轻点 App，打开其最近使用的窗口 |
@@ -97,6 +99,8 @@ UU远程 手机端沿用触控板的手势逻辑；Snug 在手机屏上按手机
 - 画面等比缩放，不变形，点按位置保持准确
 - 此类窗口的文字略小，可在手机上双指放大
 
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.1ef71d13.png" width="36%" alt="限定了最小宽度的系统设置完整铺满手机屏"><br><sub>系统设置限定了最小宽度，仍完整铺满手机屏</sub></p>
+
 ### 任意手机都按比例铺满
 
 UU远程 将画面等比缩放后放进手机，比例不符时会留下黑边。Snug 按手机型号计算手机屏的比例，使画面恰好铺满。
@@ -104,6 +108,8 @@ UU远程 将画面等比缩放后放进手机，比例不符时会留下黑边�
 - **不分系统与品牌**：iPhone、iPad 与各品牌安卓设备全面支持，内置 17 个品牌的 800 款机型
 - **自定义**：列表中没有的机型，直接填写屏幕分辨率或比例
 - **两处可选**：在 Snug 设置或手机屏 App 资源库右上角选择，两处同步
+
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-models.561fed4f.png" width="36%" alt="手机型号页：当前机型、自定义分辨率与按品牌列出的机型"><br><sub>手机型号：按品牌列出机型，也可自定义分辨率</sub></p>
 
 ## 🆚 与其他方案的对比
 
