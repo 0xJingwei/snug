@@ -8,11 +8,11 @@
 
 **A native-grade Mac experience, right on your phone**
 
-A mobile workspace built for UU Remote<br>Dedicated portrait screen · Full-screen windows · Larger text · iOS-style gestures
+Built for UU Remote<br>Native portrait display · Native gestures · App Library · Fits every phone
 
 [![Latest release](https://img.shields.io/github/v/release/zephyr4123/snug?label=release&color=blue)](https://github.com/zephyr4123/snug/releases/latest) ![Apple Silicon · Intel](https://img.shields.io/badge/Apple%20Silicon%20%C2%B7%20Intel-Universal-success) ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Notarized](https://img.shields.io/badge/Apple-Notarized-black?logo=apple) [![License MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-[Download](#-download) · [Highlights](#-highlights) · [Interactions](#-iphone-native-interactions) · [Comparison](#-compared-with-alternatives) · [Installation](#-installation) · [Usage](#-usage) · [Limitations](#-known-limitations) · [Development](#-development)
+[Download](#-download) · [Native Experience](#-native-experience) · [App Library](#-app-library) · [Fit](#-fits-every-app-and-phone) · [Comparison](#-compared-with-alternatives) · [Installation](#-installation) · [Usage](#-usage) · [Limitations](#-known-limitations) · [Development](#-development)
 
 <br>
 
@@ -38,34 +38,20 @@ A mobile workspace built for UU Remote<br>Dedicated portrait screen · Full-scre
 
 Both sources provide the identical package.
 
-## ✨ Highlights
+## ✨ Native Experience
 
-UU Remote scales your entire desktop down to fit the phone. Snug adds a dedicated portrait display for the phone, presenting your Mac's windows at a phone-native scale.
+UU Remote scales your entire desktop down to fit the phone, shrinking text and controls several times over. Snug adds a dedicated portrait display for the phone, where your Mac's windows appear at a phone-native scale, looking and behaving like native apps.
 
 <p align="center"><img src="https://dl.zephyrxiang.com/snug/media/compare-uu-original.cf4158d1.png" width="36%" alt="UU Remote alone: the whole desktop squeezed onto the phone"> <img src="https://dl.zephyrxiang.com/snug/media/phone-claude-code.93e21d9d.png" width="36%" alt="With Snug: the window fills the screen with larger text"><br><sub>Same content · Left: UU Remote alone · Right: with Snug</sub></p>
 
-| | UU Remote alone | With Snug |
-| :--- | :--- | :--- |
-| **Display** | The whole desktop is scaled down; text and controls shrink several times over | A dedicated portrait screen that each window fills completely |
-| **Text size** | Shrinks along with the desktop | Enlarged automatically in terminals and editors |
-| **One-finger swipe** | Interpreted as a mouse drag | Scrolls the page, with momentum |
-| **Switching windows** | Hunt for them on a shrunken desktop | Pick from the App Library with a single tap |
+### Native Portrait Display
 
-- When the session ends, windows return to their original positions and text sizes are restored
-- When you are not on the phone screen, UU Remote behaves exactly as it always has
+- **A dedicated portrait screen**: once your phone connects, "Snug 手机屏" (Snug Phone Screen) appears in UU Remote's screen list, matching your phone's proportions in 2x HiDPI
+- **Full-screen windows**: the selected window takes over the entire screen, and new windows open at phone width
+- **Larger text**: terminals and editors enlarge their text automatically, remembered per app
+- **Restored when you're done**: when the session ends, windows return to their original positions and text sizes are restored; when you are not on the phone screen, UU Remote behaves exactly as it always has
 
-## 📱 iPhone-Native Interactions
-
-| iPhone | Snug phone screen |
-| :--- | :--- |
-| App Library | App Library (「App 资源库」): running apps with their windows and every app on your Mac, with search |
-| Opening an app | Opening an app or selecting a window gives it the entire screen; new windows open at phone width |
-| Quitting an app | Quit an app, or close one of its windows, from the App Library; if there are unsaved changes, the save prompt appears on the phone screen |
-| Home indicator | Bottom indicator bar, returning to the App Library |
-| "‹ Back" in the top-left corner | "‹ App name" in the top-left corner, returning to the current window |
-| Dynamic Type | Text scales up for the screen, remembered per app |
-
-### Gestures, Redesigned for Touch
+### Native Gestures
 
 UU Remote's mobile client carries over trackpad gesture conventions. On the phone screen, Snug reinterprets them the way phones are meant to be used.
 
@@ -77,13 +63,55 @@ UU Remote's mobile client carries over trackpad gesture conventions. On the phon
 
 - Applies only within the phone screen; other displays and the Mac's own trackpad and mouse are unaffected
 
+### Works Like an iPhone
+
+| iPhone | Snug phone screen |
+| :--- | :--- |
+| App Library | The [App Library](#-app-library): the home page, for finding, opening, and managing the apps on your Mac |
+| Home indicator | Bottom indicator bar, returning to the App Library |
+| "‹ Back" in the top-left corner | "‹ App name" in the top-left corner, returning to the current window |
+
+## 📱 App Library
+
+The home page of the phone screen (「App 资源库」), for managing your Mac's apps from the phone: find, open, switch, create, close, and quit, without going back to your desk.
+
+- **Running** (「运行中」): each running app has its own card, with its windows listed beneath it. Every window is here, whichever display or Space it's on, even full-screen or minimized
+- **All** (「全部」): a grid of every app on your Mac, sorted by name; tap an app that isn't running to launch it
+- **Search**: matches app names and window titles, in Chinese, English, full pinyin, or pinyin initials, so "bwl" finds Notes (「备忘录」)
+
+| Action | How |
+| :--- | :--- |
+| Open a window | Tap a window to fill the phone screen; tap an app to open its most recently used window |
+| New window | Tap "New Window" on the app's card; the new window opens at phone width |
+| Close a window | Tap the close button next to the window, then tap again to confirm |
+| Quit an app | Tap "Quit" on the app's card, then tap again to confirm; if it hasn't quit after 10 seconds, you can force quit it |
+| Save unsaved changes | The save prompt that appears when closing or quitting shows up on the phone screen, so you can answer it there |
+
+## 📐 Fits Every App and Phone
+
+### Every App Fills the Screen Completely
+
+Some apps enforce a minimum width and can't shrink to the phone screen. Snug first fits the window to the phone's width; if the app won't go any narrower, it switches the phone screen to a resolution just wide enough to hold it, then fills the screen again.
+
+- Every window is shown in full, never partly cut off
+- The picture scales proportionally without distortion, and taps land exactly where you expect
+- Text in such windows is slightly smaller; pinch to zoom on the phone
+
+### Every Phone, Edge to Edge
+
+UU Remote scales the picture proportionally to fit the phone, leaving black bars when the proportions don't match. Snug sizes the phone screen to your phone model, so the picture fills it exactly.
+
+- **Any platform, any brand**: fully supports iPhone, iPad, and Android devices from every major brand, with 800 built-in models across 17 brands
+- **Custom**: if your model isn't listed, enter its screen resolution or aspect ratio
+- **Choose in either place**: in Snug's settings or in the top-right corner of the App Library on the phone screen; the two stay in sync
+
 ## 🆚 Compared with Alternatives
 
 | Approach | Limitation | Snug |
 | :--- | :--- | :--- |
 | **Remote control in AI assistants** | Limited to that vendor's own AI sessions | Works with any terminal or app |
 | **UU Remote's built-in terminal** | Separate from local terminals; processes linger after disconnecting | Uses the terminal windows already open on your Mac |
-| **UU Remote's default gestures** | Trackpad conventions | Redesigned for touch; see [Gestures](#gestures-redesigned-for-touch) |
+| **UU Remote's default gestures** | Trackpad conventions | Redesigned for touch; see [Native Gestures](#native-gestures) |
 
 - **Remote control in AI assistants**: for example, Claude Remote Control and Codex in ChatGPT, each tied to a single product
 - **UU Remote's built-in terminal**: runs in UU Remote's own tmux, isolated from the terminals already open on your Mac, so work in progress (such as Claude Code running in your terminal) cannot be picked up there; after disconnecting, the session and its processes keep running in the background
@@ -136,26 +164,24 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 
    <img src="https://dl.zephyrxiang.com/snug/media/uu-screen-picker.212fdbe9.png" width="50%" alt="UU Remote's screen list, showing display 3: Snug Phone Screen">
 
-2. **Pick an app or window**: tap an app or window in the App Library and it fills the screen; apps that aren't running are launched
-3. **Switch windows**: tap the bottom indicator bar to return to the App Library; choosing another window returns the previous one to its place
-4. **End the session**: windows return to their original positions, text sizes are restored, and the phone screen is removed
-
-On first use, choose your phone model in the top-right corner of the App Library or in Snug's settings, then switch to another screen in UU Remote and back to "Snug 手机屏", and the phone screen fills your display without letterboxing. If your model isn't listed, enter its screen resolution
+2. **Choose your phone model** (first time only): in the top-right corner of the App Library or in Snug's settings; if your model isn't listed, enter its screen resolution. Then switch to another screen in UU Remote and back, and the phone screen fills your display at the new proportions
+3. **Pick an app or window**: tap an app or window in the App Library and it fills the screen; apps that aren't running are launched
+4. **Switch windows**: tap the bottom indicator bar to return to the App Library; choosing another window returns the previous one to its place
+5. **End the session**: windows return to their original positions, text sizes are restored, and the phone screen is removed
 
 ## 🔒 Isolation and Restoration
 
 - **Only the phone screen is touched**: the main display, other screens, and other windows are left alone
 - **Record first, then change**: each window's original position and text size are recorded in advance, so they can be restored even if Snug quits unexpectedly
 - **Unresponsive apps are left as they are**: if an app stops responding, Snug does not force its window to move and explains why on screen
-- **No network access**: Snug connects to no servers and collects no data
+- **No data collection**: apart from checking for updates, Snug connects to no servers and collects no data
 
 ## 🚧 Known Limitations
 
 | Limitation | Details |
 | :--- | :--- |
 | Relies on undocumented macOS APIs | May break after a major macOS update |
-| Model proportions are estimated | Calculated from the selected phone model; only the iPhone 17 Pro Max has been measured on device. Enter a custom resolution if it's off. Portrait only |
-| Smaller text in some windows | Apps such as System Settings and Safari enforce a minimum width; the phone screen switches to a resolution just wide enough, so the window still fills it and text shrinks accordingly (pinch to zoom) |
+| Portrait only | A tablet held in landscape gets the standard UU Remote experience; landscape support for tablets is planned |
 | Text enlargement covers terminals and editors only | Ghostty, Terminal, iTerm2, VS Code, Cursor, and Zed; browsers are not adjusted |
 | Not an official NetEase product | Unaffiliated with UU Remote or its developer; UU Remote updates may affect some features |
 | The phone screen may occasionally remain after a session ends | Occurs when the system log misses the end of the stream; the menu bar still shows the session as active (「远程中」). Turn off the phone screen in Settings to restore |
