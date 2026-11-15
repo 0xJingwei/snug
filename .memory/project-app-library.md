@@ -12,4 +12,6 @@ metadata:
 
 **已定**：新窗口用「点了才问、问到就停」的 0.1 秒轮询捕获（主人认可，否掉了 AXObserver 订阅）。取证、接口、形态、待拍板、待实测全部写在分支文档 `docs/design/app-library.md`，**不在这里重复**。
 
-**How to apply:** 接着做这件事时先读那份文档；实现中有变化同步改文档。动工前的验证要在主人电脑上启动 App、建手机屏，必须先征得同意。原型含本机 App 列表，不进仓库。相关：[[project-product]]、[[feedback-ui-style]]。
+**进度（2026-11-14）**：手机屏首页、统一数据源、Mac 端重做、文档同步都已在分支上提交（13db544），真机预览实测通过（记录在文档第十六节）。剩下：和主人用手机实测（UU 键盘输入搜索、触摸滚动吸顶）、主人确认后起一轮审查、发版前重截 README 图。
+
+**How to apply:** 接着做这件事时先读那份文档；实现中有变化同步改文档。主人已允许在本机随意操作（别伤电脑），真机自测用 `scripts/snug app` 打签名版、先 SIGTERM 正在跑的 Snug、带 `--preview-phone` 启动，测完重新打开 /Applications/Snug.app。原型含本机 App 列表，不进仓库。相关：[[project-product]]、[[feedback-ui-style]]、[[feedback-workflow-scale]]。
