@@ -47,9 +47,8 @@ UU远程 将整块桌面等比压缩进手机屏幕，文字与控件随之缩�
 ### 竖屏原生显示
 
 - **专属竖屏**：手机连接后，UU远程 的屏幕列表中多出一块「Snug 手机屏」，比例与手机一致，2 倍高清
-- **窗口铺满**：选中的窗口独占整屏，新建的窗口直接按手机宽度打开
-- **字号放大**：终端与编辑器自动放大字号，按 App 分别记忆
-- **用完即还原**：远程结束后，窗口回到原位、字号复原；不切换至手机屏时，UU远程 与原版完全一致
+- **窗口铺满**：选中的窗口独占整屏
+- **字号放大**：Ghostty、终端、iTerm2、VS Code、Cursor、Zed 自动放大字号，按 App 分别记忆
 
 ### 原生手势
 
@@ -91,7 +90,9 @@ UU远程 手机端沿用触控板的手势逻辑；Snug 在手机屏上按手机
 
 ## 📐 适配所有 App 与手机
 
-### 任意 App 都能完整铺满
+### 任意 App 都能使用、完整铺满
+
+Snug 放上手机屏的是 Mac 上的窗口本身，任何 App 都能直接使用，不绑定任何一家 AI：终端里的 Claude Code、ChatGPT 桌面版里的 Codex，用起来与在电脑前一样。
 
 部分 App 限定了最小宽度，无法缩到手机屏的宽度。Snug 先按手机宽度铺开窗口；App 不允许再窄时，将手机屏切换到恰好容纳它的分辨率，再次铺满。
 
@@ -99,7 +100,7 @@ UU远程 手机端沿用触控板的手势逻辑；Snug 在手机屏上按手机
 - 画面等比缩放，不变形，点按位置保持准确
 - 此类窗口的文字略小，可在手机上双指放大
 
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.4e526ad6.png" width="36%" alt="限定了最小宽度的系统设置完整铺满手机屏"><br><sub>系统设置限定了最小宽度，仍完整铺满手机屏</sub></p>
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-chatgpt.a28ef053.png" width="36%" alt="ChatGPT 桌面版里的 Codex 铺满 Snug 手机屏"> <img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.4e526ad6.png" width="36%" alt="限定了最小宽度的系统设置完整铺满手机屏"><br><sub>左：ChatGPT 桌面版里的 Codex（文件链接已打码）· 右：限定了最小宽度的系统设置，仍完整铺满</sub></p>
 
 ### 任意手机都按比例铺满
 
@@ -107,7 +108,6 @@ UU远程 将画面等比缩放后放进手机，比例不符时会留下黑边�
 
 - **不分系统与品牌**：iPhone、iPad 与各品牌安卓设备全面支持，内置 17 个品牌的 800 款机型
 - **自定义**：列表中没有的机型，直接填写屏幕分辨率或比例
-- **两处可选**：在 Snug 设置或手机屏 App 资源库右上角选择，两处同步
 
 <p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-models.3137ee0e.png" width="36%" alt="手机型号页：当前机型、自定义分辨率与按品牌列出的机型"><br><sub>手机型号：按品牌列出机型，也可自定义分辨率</sub></p>
 
@@ -115,16 +115,11 @@ UU远程 将画面等比缩放后放进手机，比例不符时会留下黑边�
 
 | 方案 | 局限 | Snug |
 | :--- | :--- | :--- |
-| **AI 助手的远程控制** | 只能操作自家 AI 的会话 | 任意终端与 App 均可使用 |
+| **AI 助手的远程控制** | 只能操作自家 AI 的会话 | 任意终端与 App 均可使用，见 [任意 App](#任意-app-都能使用完整铺满) |
 | **UU远程 自带终端** | 独立于本机终端，断开后进程仍驻留 | 直接使用 Mac 原有的终端窗口 |
-| **UU远程 原版手势** | 沿用触控板逻辑 | 为触屏重新设计，见 [原生手势](#原生手势) |
 
 - **AI 助手的远程控制**：如 Claude Remote Control、ChatGPT 中的 Codex，均与单一产品绑定
-- **UU远程 自带终端**：运行在 UU远程 自己的 tmux 中，与 Mac 上已打开的终端互不相通，电脑上进行中的工作（如终端里的 Claude Code）无法接续；断开远程后，会话与其中的进程仍在后台运行
-
-**不绑定任何一家 AI**：Snug 放上手机屏的是 Mac 上的窗口本身，终端里的 Claude Code、桌面 App 里的 Codex 都能直接使用。
-
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-claude-code.93e21d9d.png" width="36%" alt="终端里的 Claude Code 铺满 Snug 手机屏"> <img src="https://dl.zephyrxiang.com/snug/media/phone-chatgpt.a28ef053.png" width="36%" alt="ChatGPT 桌面版里的 Codex 铺满 Snug 手机屏"><br><sub>左：终端里的 Claude Code · 右：ChatGPT 桌面版里的 Codex（文件链接已打码）</sub></p>
+- **UU远程 自带终端**：运行在 UU远程 自己的 tmux 中，电脑上进行中的工作（如终端里的 Claude Code）无法在其中接续
 
 ## 📦 安装
 
@@ -170,14 +165,14 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 
    <img src="https://dl.zephyrxiang.com/snug/media/uu-screen-picker.212fdbe9.png" width="50%" alt="UU远程 的屏幕列表：显示屏 3（Snug 手机屏）">
 
-2. **选择手机型号**（仅首次）：在 App 资源库右上角或 Snug 设置中选择；列表中没有的机型可填写屏幕分辨率。选好后在 UU远程 中切到其他屏幕再切回，手机屏即按新的比例铺满
+2. **选择手机型号**（仅首次）：在 App 资源库右上角或 Snug 设置中选择。选好后在 UU远程 中切到其他屏幕再切回，手机屏即按新的比例铺满
 3. **选择 App 或窗口**：在 App 资源库中轻点 App 或窗口，即铺满整屏；未运行的 App 直接打开
 4. **切换窗口**：轻点底部指示条返回 App 资源库；另选窗口时，原窗口自动归位
 5. **结束远程**：窗口回到原位、字号复原，手机屏随之移除
 
 ## 🔒 隔离与还原
 
-- **只改动手机屏**：不更改主显示器，不关闭任何屏幕，不触碰其他窗口
+- **只改动手机屏**：不更改主显示器，不关闭任何屏幕，不触碰其他窗口；不切换至手机屏时，UU远程 与原版完全一致
 - **先记录，后改动**：窗口的原始位置与字号先行记录，Snug 意外退出后也能还原
 - **无响应时保持原状**：App 暂时无响应时不强行移动窗口，并在屏上说明原因
 - **不收集数据**：除检查更新外不连接任何服务器，不收集任何数据
@@ -188,7 +183,6 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 | :--- | :--- |
 | 依赖 macOS 未公开接口 | 系统大版本更新后可能失效 |
 | 仅提供竖屏 | 平板横向使用时为 UU远程 原版体验；平板横屏在后续计划中 |
-| 字号放大仅限终端与编辑器 | Ghostty、终端、iTerm2、VS Code、Cursor、Zed；浏览器不做调整 |
 | 非网易官方软件 | 与 UU远程 及其开发商无关；UU远程 更新后部分功能可能受影响 |
 | 远程结束后手机屏偶尔未移除 | 推流停止未被系统日志记录时出现，菜单栏仍显示「远程中」；在设置中关闭手机屏即可还原 |
 

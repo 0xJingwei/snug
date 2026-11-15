@@ -47,9 +47,8 @@ UU Remote scales your entire desktop down to fit the phone, shrinking text and c
 ### Native Portrait Display
 
 - **A dedicated portrait screen**: once your phone connects, "Snug 手机屏" (Snug Phone Screen) appears in UU Remote's screen list, matching your phone's proportions in 2x HiDPI
-- **Full-screen windows**: the selected window takes over the entire screen, and new windows open at phone width
-- **Larger text**: terminals and editors enlarge their text automatically, remembered per app
-- **Restored when you're done**: when the session ends, windows return to their original positions and text sizes are restored; when you are not on the phone screen, UU Remote behaves exactly as it always has
+- **Full-screen windows**: the selected window takes over the entire screen
+- **Larger text**: Ghostty, Terminal, iTerm2, VS Code, Cursor, and Zed enlarge their text automatically, remembered per app
 
 ### Native Gestures
 
@@ -91,7 +90,9 @@ The home page of the phone screen (「App 资源库」), for managing your Mac's
 
 ## 📐 Fits Every App and Phone
 
-### Every App Fills the Screen Completely
+### Every App Works and Fills the Screen
+
+Snug brings the Mac's windows themselves to the phone screen, so every app works as it is, with no tie to any AI vendor: Claude Code in a terminal and Codex in the ChatGPT desktop app work just as they do at your desk.
 
 Some apps enforce a minimum width and can't shrink to the phone screen. Snug first fits the window to the phone's width; if the app won't go any narrower, it switches the phone screen to a resolution just wide enough to hold it, then fills the screen again.
 
@@ -99,7 +100,7 @@ Some apps enforce a minimum width and can't shrink to the phone screen. Snug fir
 - The picture scales proportionally without distortion, and taps land exactly where you expect
 - Text in such windows is slightly smaller; pinch to zoom on the phone
 
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.4e526ad6.png" width="36%" alt="System Settings, which enforces a minimum width, filling the phone screen completely"><br><sub>System Settings enforces a minimum width, yet still fills the phone screen completely</sub></p>
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-chatgpt.a28ef053.png" width="36%" alt="Codex in the ChatGPT desktop app, filling the Snug phone screen"> <img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.4e526ad6.png" width="36%" alt="System Settings, which enforces a minimum width, filling the phone screen completely"><br><sub>Left: Codex in the ChatGPT desktop app (file links redacted) · Right: System Settings enforces a minimum width, yet still fills the screen completely</sub></p>
 
 ### Every Phone, Edge to Edge
 
@@ -107,7 +108,6 @@ UU Remote scales the picture proportionally to fit the phone, leaving black bars
 
 - **Any platform, any brand**: fully supports iPhone, iPad, and Android devices from every major brand, with 800 built-in models across 17 brands
 - **Custom**: if your model isn't listed, enter its screen resolution or aspect ratio
-- **Choose in either place**: in Snug's settings or in the top-right corner of the App Library on the phone screen; the two stay in sync
 
 <p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-models.3137ee0e.png" width="36%" alt="Phone model page: the current model, a custom resolution, and models listed by brand"><br><sub>Phone model: models listed by brand, or enter a custom resolution</sub></p>
 
@@ -115,16 +115,11 @@ UU Remote scales the picture proportionally to fit the phone, leaving black bars
 
 | Approach | Limitation | Snug |
 | :--- | :--- | :--- |
-| **Remote control in AI assistants** | Limited to that vendor's own AI sessions | Works with any terminal or app |
+| **Remote control in AI assistants** | Limited to that vendor's own AI sessions | Works with any terminal or app; see [Every App](#every-app-works-and-fills-the-screen) |
 | **UU Remote's built-in terminal** | Separate from local terminals; processes linger after disconnecting | Uses the terminal windows already open on your Mac |
-| **UU Remote's default gestures** | Trackpad conventions | Redesigned for touch; see [Native Gestures](#native-gestures) |
 
 - **Remote control in AI assistants**: for example, Claude Remote Control and Codex in ChatGPT, each tied to a single product
-- **UU Remote's built-in terminal**: runs in UU Remote's own tmux, isolated from the terminals already open on your Mac, so work in progress (such as Claude Code running in your terminal) cannot be picked up there; after disconnecting, the session and its processes keep running in the background
-
-**Not tied to any AI vendor**: Snug brings the Mac's windows themselves to the phone screen, so Claude Code in a terminal and Codex in a desktop app both work as they are.
-
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-claude-code.93e21d9d.png" width="36%" alt="Claude Code in a terminal, filling the Snug phone screen"> <img src="https://dl.zephyrxiang.com/snug/media/phone-chatgpt.a28ef053.png" width="36%" alt="Codex in the ChatGPT desktop app, filling the Snug phone screen"><br><sub>Left: Claude Code in a terminal · Right: Codex in the ChatGPT desktop app (file links redacted)</sub></p>
+- **UU Remote's built-in terminal**: runs in UU Remote's own tmux, so work in progress on your Mac (such as Claude Code running in your terminal) cannot be picked up there
 
 ## 📦 Installation
 
@@ -170,14 +165,14 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 
    <img src="https://dl.zephyrxiang.com/snug/media/uu-screen-picker.212fdbe9.png" width="50%" alt="UU Remote's screen list, showing display 3: Snug Phone Screen">
 
-2. **Choose your phone model** (first time only): in the top-right corner of the App Library or in Snug's settings; if your model isn't listed, enter its screen resolution. Then switch to another screen in UU Remote and back, and the phone screen fills your display at the new proportions
+2. **Choose your phone model** (first time only): in the top-right corner of the App Library or in Snug's settings. Then switch to another screen in UU Remote and back, and the phone screen fills your display at the new proportions
 3. **Pick an app or window**: tap an app or window in the App Library and it fills the screen; apps that aren't running are launched
 4. **Switch windows**: tap the bottom indicator bar to return to the App Library; choosing another window returns the previous one to its place
 5. **End the session**: windows return to their original positions, text sizes are restored, and the phone screen is removed
 
 ## 🔒 Isolation and Restoration
 
-- **Only the phone screen is touched**: the main display, other screens, and other windows are left alone
+- **Only the phone screen is touched**: the main display, other screens, and other windows are left alone; when you are not on the phone screen, UU Remote behaves exactly as it always has
 - **Record first, then change**: each window's original position and text size are recorded in advance, so they can be restored even if Snug quits unexpectedly
 - **Unresponsive apps are left as they are**: if an app stops responding, Snug does not force its window to move and explains why on screen
 - **No data collection**: apart from checking for updates, Snug connects to no servers and collects no data
@@ -188,7 +183,6 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 | :--- | :--- |
 | Relies on undocumented macOS APIs | May break after a major macOS update |
 | Portrait only | A tablet held in landscape gets the standard UU Remote experience; landscape support for tablets is planned |
-| Text enlargement covers terminals and editors only | Ghostty, Terminal, iTerm2, VS Code, Cursor, and Zed; browsers are not adjusted |
 | Not an official NetEase product | Unaffiliated with UU Remote or its developer; UU Remote updates may affect some features |
 | The phone screen may occasionally remain after a session ends | Occurs when the system log misses the end of the stream; the menu bar still shows the session as active (「远程中」). Turn off the phone screen in Settings to restore |
 
