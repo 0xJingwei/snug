@@ -7,7 +7,7 @@
 import CoreGraphics
 
 public enum ScreenFit {
-    /// 基准宽度：窗口列表、能铺满的窗口都用它
+    /// 基准宽度：App 资源库、能铺满的窗口都用它
     public static let baseWidth = 540
     /// 最宽一档：字只剩一半，不比 UU 原版看主屏大了，再宽没有意义。更宽的 App 用这一档、靠左放
     public static let maxWidth = 1080

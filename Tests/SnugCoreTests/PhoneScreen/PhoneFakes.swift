@@ -111,7 +111,8 @@ final class FakeWindows: WindowControl {
     private let grows = Locked(false)
     private let minSizes = Locked<[WindowKey: CGSize]>([:])
     private let moveHook = Locked<(@Sendable (WindowKey) -> Void)?>(nil)
-    private let asking = Locked<WindowKey?>(nil)
+    private let asking = Locked<Asking?>(nil)
+    private let closeReactions = Locked<[WindowKey: CloseReaction]>([:])
     /// 判断窗口出没出现在屏上的时钟（见 Window.shownFrom）
     let clock = Locked<(@Sendable () -> TimeInterval)?>(nil)
     /// 设了就在每次挪窗口、发按键时记一下此刻还原记录在不在（检查「先记账再动手」）
@@ -151,12 +152,32 @@ final class FakeWindows: WindowControl {
     }
     /// App 重新显示藏起来的窗口（唤回）
     func unhide(_ key: WindowKey) { state.withLock { $0[key]?.hidden = false } }
-    /// App 弹出「要存储吗」，挂在这个窗口上
-    func askToSave(_ key: WindowKey?) { asking.withLock { $0 = key } }
+
+    /// App 在问用户，问的是 key 这个窗口（挂着 sheet 的文档窗口，或单独的对话框）。answer 秒数到了就算答完：
+    /// 不再问，接着做 then 里的事（App 退出、窗口关掉；什么都不做就是点了取消）
+    struct Asking: Sendable {
+        var key: WindowKey
+        var answeredAt: TimeInterval?
+        var then: (@Sendable () -> Void)?
+    }
+    func ask(_ key: WindowKey, answeredAfter delay: TimeInterval? = nil, then: (@Sendable () -> Void)? = nil) {
+        let now = clock.withLock { $0 }?() ?? 0
+        asking.withLock { $0 = Asking(key: key, answeredAt: delay.map { now + $0 }, then: then) }
+    }
+
+    /// 按关闭按钮时窗口的反应
+    enum CloseReaction: Sendable {
+        /// 问「要存储吗」（挂在它自己身上），过 after 秒答完：save 就关掉，否则是点了取消
+        case asks(after: TimeInterval, save: Bool)
+        /// 按了不关、也不问
+        case stalls
+    }
+    func onClose(_ key: WindowKey, _ reaction: CloseReaction) { closeReactions.withLock { $0[key] = reaction } }
+
     /// 这个进程的窗口全关掉（App 退出）
     func closeAll(of pid: Int32) { state.withLock { $0 = $0.filter { $0.key.pid != pid } } }
-
-    func close(_ key: WindowKey) { _ = state.withLock { $0.removeValue(forKey: key) } }
+    /// 窗口没了（用户在 Mac 上关掉、App 自己关掉）
+    func vanish(_ key: WindowKey) { _ = state.withLock { $0.removeValue(forKey: key) } }
     /// 像飞书、微信点关闭那样：窗口藏起来，还在
     func hide(_ key: WindowKey) { state.withLock { $0[key]?.hidden = true } }
     func window(_ key: WindowKey) -> Window? { state.withLock { $0[key] } }
@@ -187,9 +208,27 @@ final class FakeWindows: WindowControl {
             .sorted { $0.key.id < $1.key.id }.map { info($0.key, $0.value) }
     }
 
-    func windowAskingToSave(of pid: Int32) async -> WindowInfo? {
-        guard let key = asking.withLock({ $0 }), key.pid == pid, let w = window(key) else { return nil }
-        return info(key, w)
+    func askingWindow(of pid: Int32) async -> WindowInfo? {
+        guard let a = asking.withLock({ $0 }), a.key.pid == pid else { return nil }
+        if let at = a.answeredAt, (clock.withLock { $0 }?() ?? 0) >= at {
+            asking.withLock { $0 = nil }
+            a.then?()
+            return nil
+        }
+        return window(a.key).map { info(a.key, $0) }
+    }
+
+    /// 全屏的按了没反应（和真的一样）
+    func close(_ window: WindowKey) async -> Bool {
+        guard reachable, let w = self.window(window) else { return false }
+        journal.add("close \(window.id)\(w.fullScreen ? "（全屏，没反应）" : "")")
+        guard !w.fullScreen else { return true }
+        switch closeReactions.withLock({ $0[window] }) {
+        case nil: vanish(window)
+        case .asks(let after, let save): ask(window, answeredAfter: after) { if save { self.vanish(window) } }
+        case .stalls: break
+        }
+        return true
     }
 
     func look(_ window: WindowKey) async -> WindowLook? {
@@ -254,7 +293,7 @@ final class FakeWindows: WindowControl {
     }
 }
 
-/// 假 App：启动、唤回、⌘N 时按事先登记的样子开出窗口（可以晚一会儿才出现在屏上），退出时按登记的反应来
+/// 假 App：启动、唤回、新建窗口时按事先登记的样子开出窗口（可以晚一会儿才出现在屏上），退出时按登记的反应来
 final class FakeApps: AppControl {
     /// 打开、新建窗口时开出来的窗口：编号、位置、多久后出现在屏上；全屏的给出退出全屏后的位置
     struct Spawn: Sendable {
@@ -266,10 +305,18 @@ final class FakeApps: AppControl {
         var title = ""
     }
 
+    /// 用户怎么答对话框：过 after 秒答完，存储（App 接着退出）或取消
+    enum Answer: Sendable {
+        case save(after: TimeInterval)
+        case cancel(after: TimeInterval)
+    }
+
     enum Quit: Sendable {
         case exits
-        /// 弹出「要存储吗」，挂在这个编号的窗口上
-        case asksToSave(UInt32)
+        /// 过这么久才退完（大型 App）
+        case slow(after: TimeInterval)
+        /// 问「要存储吗」：挂在这个编号的窗口上；dialog 为 true 时另弹一个这个编号的对话框窗口
+        case asks(UInt32, dialog: Bool = false, answer: Answer)
         /// 一直不退
         case stalls
     }
@@ -277,14 +324,15 @@ final class FakeApps: AppControl {
     let journal: Journal
     let windows: FakeWindows
     private let timeline: ManualTimeline
-    private let running = Locked<[String: Int32]>([:])
-    private let names = Locked<[Int32: String]>([:])
+    private let running = Locked<[Int32: AppInfo]>([:])
     private let spawns = Locked<[String: Spawn]>([:])
     private let quits = Locked<[String: Quit]>([:])
     private let reshows = Locked<[String: UInt32]>([:])
+    /// 到点就退出的进程（慢慢退完、启动后崩溃）
+    private let exitsAt = Locked<[Int32: TimeInterval]>([:])
+    private let crashes = Locked<[String: TimeInterval]>([:])
     private let nextPID = Locked<Int32>(500)
-    /// 打不开（启动失败）
-    let launchFails = Locked(false)
+    private let launchFails = Locked(false)
 
     init(journal: Journal, windows: FakeWindows, timeline: ManualTimeline) {
         self.journal = journal
@@ -292,52 +340,71 @@ final class FakeApps: AppControl {
         self.timeline = timeline
     }
 
-    /// 登记一个在跑的 App
-    func run(_ app: AppInfo, pid: Int32) {
-        running.withLock { $0[app.bundleID] = pid }
-        names.withLock { $0[pid] = app.bundleID }
+    /// 登记一个在跑的 App，交回列表里的样子
+    @discardableResult
+    func run(_ app: AppInfo, pid: Int32, windows: [WindowInfo] = []) -> RunningApp {
+        running.withLock { $0[pid] = app }
+        return RunningApp(pid: pid, app: app, windows: windows)
     }
-    /// 打开、⌘N 时开出这个窗口；不登记的 App 菜单里没有 ⌘N
+    /// 打开、新建窗口时开出这个窗口；不登记的 App 菜单里没有「新建窗口」
     func willSpawn(_ app: AppInfo, _ spawn: Spawn) { spawns.withLock { $0[app.bundleID] = spawn } }
     func onQuit(_ app: AppInfo, _ quit: Quit) { quits.withLock { $0[app.bundleID] = quit } }
     /// 唤回时重新显示这个编号的窗口（原来关成了隐藏），不开新的
     func willReshow(_ app: AppInfo, id: UInt32) { reshows.withLock { $0[app.bundleID] = id } }
+    /// 打不开（启动失败）
+    func failLaunches() { launchFails.withLock { $0 = true } }
+    /// 启动 after 秒后自己退了（崩溃），一个窗口都没开出来
+    func willCrash(_ app: AppInfo, after: TimeInterval) { crashes.withLock { $0[app.bundleID] = after } }
 
-    private func spawn(for bundle: String, pid: Int32) {
-        guard let s = spawns.withLock({ $0[bundle] }) else { return }
+    private func spawn(for app: AppInfo, pid: Int32) {
+        guard let s = spawns.withLock({ $0[app.bundleID] }) else { return }
         let key = WindowKey(pid: pid, id: s.id)
         windows.add(key, frame: s.frame, fullScreen: s.fullScreen, windowed: s.windowed, shownFrom: timeline.now + s.delay,
-                    info: WindowInfo(key: key, app: bundle, bundleID: bundle, title: s.title))
+                    info: WindowInfo(key: key, app: app.name, bundleID: app.bundleID, title: s.title))
     }
 
-    func pid(of app: AppInfo) async -> Int32? { running.withLock { $0[app.bundleID] } }
+    func pid(of app: AppInfo) async -> Int32? { running.withLock { $0.first { $0.value.bundleID == app.bundleID }?.key } }
 
     func open(_ app: AppInfo) async -> Int32? {
         journal.add("open \(app.bundleID)")
         guard !launchFails.withLock({ $0 }) else { return nil }
-        if let pid = running.withLock({ $0[app.bundleID] }) {
-            if let id = reshows.withLock({ $0[app.bundleID] }) { windows.unhide(WindowKey(pid: pid, id: id)) } else { spawn(for: app.bundleID, pid: pid) }
+        if let pid = await pid(of: app) {
+            if let id = reshows.withLock({ $0[app.bundleID] }) { windows.unhide(WindowKey(pid: pid, id: id)) } else { spawn(for: app, pid: pid) }
             return pid
         }
         let pid = nextPID.withLock { $0 += 1; return $0 }
         run(app, pid: pid)
-        spawn(for: app.bundleID, pid: pid)
+        if let after = crashes.withLock({ $0[app.bundleID] }) {
+            exitsAt.withLock { $0[pid] = timeline.now + after }
+        } else {
+            spawn(for: app, pid: pid)
+        }
         return pid
     }
 
     func newWindow(pid: Int32) async -> Bool {
         journal.add("newwin \(pid)")
-        guard let bundle = names.withLock({ $0[pid] }), spawns.withLock({ $0[bundle] }) != nil else { return false }
-        spawn(for: bundle, pid: pid)
+        guard let app = running.withLock({ $0[pid] }), spawns.withLock({ $0[app.bundleID] }) != nil else { return false }
+        spawn(for: app, pid: pid)
         return true
     }
 
     func quit(pid: Int32) async {
         journal.add("quit \(pid)")
-        guard let bundle = names.withLock({ $0[pid] }) else { return }
-        switch quits.withLock({ $0[bundle] }) ?? .exits {
+        guard let app = running.withLock({ $0[pid] }) else { return }
+        switch quits.withLock({ $0[app.bundleID] }) ?? .exits {
         case .exits: exit(pid)
-        case .asksToSave(let id): windows.askToSave(WindowKey(pid: pid, id: id))
+        case .slow(let after): exitsAt.withLock { $0[pid] = timeline.now + after }
+        case .asks(let id, let dialog, let answer):
+            let key = WindowKey(pid: pid, id: id)
+            if dialog {
+                windows.add(key, frame: CGRect(x: 546, y: 380, width: 420, height: 160),
+                            info: WindowInfo(key: key, app: app.name, bundleID: app.bundleID, title: ""))
+            }
+            switch answer {
+            case .save(let after): windows.ask(key, answeredAfter: after) { self.exit(pid) }
+            case .cancel(let after): windows.ask(key, answeredAfter: after) { if dialog { self.windows.vanish(key) } }
+            }
         case .stalls: break
         }
     }
@@ -347,11 +414,14 @@ final class FakeApps: AppControl {
         exit(pid)
     }
 
-    func isRunning(pid: Int32) async -> Bool { names.withLock { $0[pid] } != nil }
+    func isRunning(pid: Int32) async -> Bool {
+        if let at = exitsAt.withLock({ $0[pid] }), timeline.now >= at { exit(pid) }
+        return running.withLock { $0[pid] } != nil
+    }
 
     private func exit(_ pid: Int32) {
-        guard let bundle = names.withLock({ $0.removeValue(forKey: pid) }) else { return }
-        running.withLock { $0[bundle] = nil }
+        exitsAt.withLock { $0[pid] = nil }
+        guard running.withLock({ $0.removeValue(forKey: pid) }) != nil else { return }
         windows.closeAll(of: pid)
     }
 }

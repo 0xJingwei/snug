@@ -6,7 +6,7 @@ import Testing
 @Suite("手机屏调度 PhoneDesk")
 @MainActor
 struct PhoneDeskTests {
-    @Test("要手机屏：加屏前给窗口拍快照，加好后把被系统拉走的窗口放回去；显示窗口列表")
+    @Test("要手机屏：加屏前给窗口拍快照，加好后把被系统拉走的窗口放回去；露出 App 资源库")
     func addScreen() async throws {
         let rig = try Rig()
         // macOS 会把上次留在这块屏上的窗口拉过去
@@ -196,7 +196,7 @@ struct PhoneDeskTests {
         let rig = try Rig()
         await rig.ready()
         await rig.pull(ghostty)
-        rig.windows.close(finder.key)
+        rig.windows.vanish(finder.key)
         rig.journal.clear()
         await rig.pull(finder)
         #expect(rig.journal.all.isEmpty)
@@ -222,7 +222,7 @@ struct PhoneDeskTests {
     func noticeClearedWithScreen() async throws {
         let rig = try Rig()
         await rig.ready()
-        rig.windows.close(finder.key)
+        rig.windows.vanish(finder.key)
         await rig.pull(finder)
         #expect(rig.desk.state.notice != nil)
         rig.timeline.advance(10)
@@ -364,19 +364,19 @@ struct PhoneDeskTests {
     func pullClosedWindow() async throws {
         let rig = try Rig()
         await rig.ready()
-        rig.windows.close(finder.key)
+        rig.windows.vanish(finder.key)
         await rig.pull(finder)
         #expect(rig.desk.state.notice == .windowGone(app: "Finder"))
         #expect(rig.record == nil)
         #expect(rig.desk.state.placed == nil)
     }
 
-    @Test("手机屏上的窗口被关掉：定期核对时发现，回到窗口列表，记录作废")
+    @Test("手机屏上的窗口被关掉：定期核对时发现，回到 App 资源库，记录作废")
     func placedWindowClosed() async throws {
         let rig = try Rig()
         await rig.ready()
         await rig.pull(ghostty)
-        rig.windows.close(ghostty.key)
+        rig.windows.vanish(ghostty.key)
         rig.desk.verifyPlacement()
         await rig.desk.idle()
         #expect(rig.desk.state.placed == nil)
@@ -770,7 +770,7 @@ struct PhoneDeskTests {
         rig.windows.setMinSize(finder.key, width: 740)
         await rig.ready()
         let windows = rig.windows
-        windows.onMove { key in windows.close(key) }     // 第一次挪完就关了，换档后的第二次挪不动
+        windows.onMove { key in windows.vanish(key) }     // 第一次挪完就关了，换档后的第二次挪不动
         await rig.pull(finder)
         #expect(rig.journal.all.contains("width 101 740"))
         #expect(rig.desk.state.notice == .windowGone(app: "Finder"))
@@ -796,7 +796,7 @@ struct PhoneDeskTests {
     @Test("上次崩溃留下的记录，窗口已经不在了：记录作废，什么都不动")
     func recoverGoneWindow() async throws {
         let rig = try Rig()
-        rig.windows.close(safari.key)
+        rig.windows.vanish(safari.key)
         try RestoreRecord<PhoneRecord>(url: rig.paths.phoneRecord).record(
             PhoneRecord(window: safari.key, app: safari.app, label: safari.label, original: safariHome, wasFullScreen: true, zoom: 2))
         rig.desk.recover()

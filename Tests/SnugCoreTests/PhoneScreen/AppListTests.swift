@@ -15,7 +15,7 @@ private func running(_ pid: Int32, _ windows: [WindowInfo], bundle: String? = ni
 
 private let notesApp = installed("com.apple.Notes", "备忘录", english: "Notes")
 private let memos = installed("com.apple.VoiceMemos", "语音备忘录", english: "Voice Memos")
-private let ghosttyApp = installed("com.mitchellh.ghosttyApp", "Ghostty")
+private let ghosttyApp = installed("com.mitchellh.ghostty", "Ghostty")
 private let code = installed("com.microsoft.VSCode", "Visual Studio Code", english: "Code")
 private let bionic = installed("com.example.bionic", "Bionic")
 private let onePassword = installed("com.1password.1password", "1Password")
@@ -32,7 +32,7 @@ struct AppListTests {
 
     @Test("字典序：中文按拼音插在英文中间，数字开头的在最前，同一个 App 装两份只留一份")
     func sorted() {
-        let list = AppList.sorted([ghosttyApp, notesApp, bionic, onePassword, code, installed("com.mitchellh.ghosttyApp", "Ghostty 副本")])
+        let list = AppList.sorted([ghosttyApp, notesApp, bionic, onePassword, code, installed("com.mitchellh.ghostty", "Ghostty 副本")])
         #expect(list.map(\.app.name) == ["1Password", "备忘录", "Bionic", "Ghostty", "Visual Studio Code"])
     }
 

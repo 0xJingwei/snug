@@ -79,8 +79,11 @@ public final class AppService: AppControl {
 
     public func newWindow(pid: Int32) async -> Bool {
         await run {
-            guard let item = AX.menuItem(pid: pid, commandKey: "N") else { return false }
-            return AX.press(item)
+            let items = AX.menuCommands(pid: pid)
+            guard let index = NewWindowMenu.pick(items.map(\.command)) else { return false }
+            let command = items[index].command
+            Log.info("新建窗口：按菜单项「\([command.parent, command.title].compactMap { $0 }.joined(separator: " › "))」（pid \(pid)）")
+            return AX.press(items[index].element)
         }
     }
 
@@ -90,7 +93,8 @@ public final class AppService: AppControl {
     }
 
     public func forceQuit(pid: Int32) async {
-        _ = NSRunningApplication(processIdentifier: pid)?.forceTerminate()
+        guard let app = NSRunningApplication(processIdentifier: pid), !app.forceTerminate() else { return }
+        Log.warn("强制退出请求没发出去（pid \(pid)）")
     }
 
     public func isRunning(pid: Int32) async -> Bool {
@@ -111,8 +115,10 @@ public final class AppService: AppControl {
         }
     }
 
+    /// 访达隐藏扩展名时（默认）displayName 已经去掉了 .app：只去结尾的 .app，名字本身带点的（zoom.us）不截
     private static func displayName(_ url: URL) -> String {
-        (FileManager.default.displayName(atPath: url.path) as NSString).deletingPathExtension
+        let name = FileManager.default.displayName(atPath: url.path)
+        return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
     }
 
     private static func flag(_ value: Any?) -> Bool {

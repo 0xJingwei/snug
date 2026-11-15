@@ -138,17 +138,26 @@ public final class WindowService: WindowControl {
         }
     }
 
-    public func windowAskingToSave(of pid: Int32) async -> WindowInfo? {
+    public func askingWindow(of pid: Int32) async -> WindowInfo? {
         guard let app = Self.app(pid) else { return nil }
         return await run {
-            for element in AX.respondingWindows(pid: pid) ?? [] where AX.hasSheet(element) {
+            for element in AX.respondingWindows(pid: pid) ?? [] where AX.isAsking(element) {
                 if let id = AX.windowID(element) { return Self.info(element, key: WindowKey(pid: pid, id: id), of: app) }
             }
             return nil
         }
     }
 
-    // MARK: 窗口列表（手机屏上的卡片）
+    public func close(_ window: WindowKey) async -> Bool {
+        await run {
+            guard let element = AX.element(for: window),
+                  let button = AX.attribute(element, kAXCloseButtonAttribute), CFGetTypeID(button) == AXUIElementGetTypeID()
+            else { return false }
+            return AX.press(button as! AXUIElement)
+        }
+    }
+
+    // MARK: App 资源库（手机屏上的卡片）
 
     /// 给在跑的 App 补上窗口：不管在哪块屏、哪个桌面空间，全屏、最小化的也算。App 和窗口都按最近用过排
     public func withWindows(_ apps: [RunningApp]) async -> [RunningApp] {
@@ -255,8 +264,5 @@ public final class WindowService: WindowControl {
     }
 
     /// 屏上窗口从前到后的编号
-    private static func frontToBack() -> [UInt32] {
-        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-        return (list ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }
-    }
+    private static func frontToBack() -> [UInt32] { onScreen().map(\.id) }
 }

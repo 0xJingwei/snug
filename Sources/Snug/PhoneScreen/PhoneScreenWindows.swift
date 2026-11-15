@@ -135,7 +135,7 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// 底部小横条：点一下，或者往上滑，回到窗口列表。中间是 SF Symbols 的 chevron.compact.up。
+/// 底部小横条：点一下，或者往上滑，回到 App 资源库。中间是 SF Symbols 的 chevron.compact.up。
 /// 手机屏换到更宽的一档时跟着放大（scale），在手机上看着、点着、滑着都和基准宽度一样
 final class HomeBarView: NSView {
     /// 基准宽度下往上滑过这么多点算数
@@ -165,7 +165,7 @@ final class HomeBarView: NSView {
     required init?(coder: NSCoder) { fatalError("不从 nib 加载") }
 
     private func updateGrabber() {
-        grabber.image = NSImage(systemSymbolName: "chevron.compact.up", accessibilityDescription: "窗口列表")?
+        grabber.image = NSImage(systemSymbolName: "chevron.compact.up", accessibilityDescription: "App 资源库")?
             .withSymbolConfiguration(.init(pointSize: 22 * scale, weight: .semibold))
     }
 

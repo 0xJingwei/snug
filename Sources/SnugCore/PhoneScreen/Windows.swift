@@ -16,7 +16,7 @@ public struct WindowKey: Hashable, Codable, Sendable, CustomStringConvertible {
     public var description: String { "\(pid)/\(id)" }
 }
 
-/// 窗口列表里的一张卡片
+/// App 资源库里的一个窗口
 public struct WindowInfo: Equatable, Identifiable, Sendable {
     public let key: WindowKey
     public let app: String

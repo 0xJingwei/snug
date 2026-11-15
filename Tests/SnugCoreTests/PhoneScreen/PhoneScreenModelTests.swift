@@ -57,8 +57,8 @@ struct ControllerKindTests {
 
 @Suite("窗口信息")
 struct WindowInfoTests {
-    private func w(_ id: UInt32, _ app: String, bundle: String? = nil) -> WindowInfo {
-        WindowInfo(key: WindowKey(pid: 1, id: id), app: app, bundleID: bundle, title: "")
+    private func w(_ id: UInt32, _ app: String) -> WindowInfo {
+        WindowInfo(key: WindowKey(pid: 1, id: id), app: app, bundleID: nil, title: "")
     }
 
     @Test("日志标签：有标题带标题，太长截断")

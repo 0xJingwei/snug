@@ -62,7 +62,7 @@ enum UUAccessibility {
         guard depth < maxDepth, out.count < maxNodes else { return false }
         seen.insert(node)
         out.append(node)
-        for child in (AX.attribute(node, kAXChildrenAttribute) as? [AXUIElement]) ?? [] {
+        for child in AX.children(node) {
             guard flatten(child, depth: depth + 1, into: &out, seen: &seen) else { return false }
         }
         return true

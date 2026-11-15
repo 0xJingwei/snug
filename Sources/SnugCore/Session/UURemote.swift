@@ -1,4 +1,4 @@
-// UU远程 的身份。各处认 UU（感知、手势只接管它发来的操作、窗口列表里排除它）都认这里
+// UU远程 的身份。各处认 UU（感知、手势只接管它发来的操作、App 资源库里排除它）都认这里
 import Foundation
 
 public enum UURemote {

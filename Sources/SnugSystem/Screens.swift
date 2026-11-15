@@ -14,13 +14,11 @@ public enum Screens {
         screen(for: id)?.localizedName ?? "显示器 #\(id)"
     }
 
+    /// 主屏：菜单栏所在、原点为 0,0 的那块
+    public static var primary: NSScreen? { NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first }
+
     /// AppKit 坐标 → 辅助功能坐标
     public static func axRect(fromAppKit rect: CGRect) -> CGRect {
-        CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
-    }
-
-    /// 主屏（菜单栏所在、原点为 0,0 的那块）的高度
-    private static var primaryHeight: CGFloat {
-        (NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first)?.frame.height ?? 0
+        CGRect(x: rect.minX, y: (primary?.frame.height ?? 0) - rect.maxY, width: rect.width, height: rect.height)
     }
 }

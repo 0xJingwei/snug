@@ -1,4 +1,4 @@
-// 辅助功能接口的薄封装：搬窗口（WindowService）和感知 UU（读控制端表格）共用。
+// 辅助功能接口的薄封装：搬窗口（WindowService）、按菜单新建窗口（AppService）和感知 UU（读控制端表格）共用。
 // 超时：App 卡住时辅助功能的每次调用要等满超时，系统默认约 6 秒；Snug 把本进程的全局超时设成 1 秒（configureTimeout）。
 // 两个私有接口（_AXUIElementGetWindow、_AXUIElementCreateWithRemoteToken）只在这个文件里用
 import AppKit
@@ -38,27 +38,40 @@ public enum AX {
         AXUIElementSetAttributeValue(element, name as CFString, value) == .success
     }
 
+    public static func children(_ element: AXUIElement) -> [AXUIElement] {
+        (attribute(element, kAXChildrenAttribute) as? [AXUIElement]) ?? []
+    }
+
     /// 标准窗口（不含面板、对话框）
     static func isStandard(_ element: AXUIElement) -> Bool { string(element, kAXSubroleAttribute) == kAXStandardWindowSubrole }
 
-    /// 窗口上挂着对话框（退出时的「要存储吗」就挂在文档窗口上）
-    static func hasSheet(_ window: AXUIElement) -> Bool {
-        ((attribute(window, kAXChildrenAttribute) as? [AXUIElement]) ?? []).contains { string($0, kAXRoleAttribute) == kAXSheetRole }
+    /// 在问用户的窗口：挂着 sheet 的文档窗口（「要存储吗」），或单独弹出的对话框
+    /// （同时有几个未存储的文稿时，退出先问「要先检查吗」，是个子角色为 AXDialog 的模态窗口，实测 11-14）
+    static func isAsking(_ window: AXUIElement) -> Bool {
+        let subrole = string(window, kAXSubroleAttribute)
+        return subrole == kAXDialogSubrole || subrole == kAXSystemDialogSubrole
+            || children(window).contains { string($0, kAXRoleAttribute) == kAXSheetRole }
     }
 
-    /// 菜单栏里快捷键是 ⌘ + key（不带别的修饰键）的菜单项。只看各个菜单的第一层：「新建窗口」这类都在第一层，
-    /// 不往子菜单里钻（大 App 的菜单有上千项）。跳过苹果菜单
-    static func menuItem(pid: pid_t, commandKey key: String) -> AXUIElement? {
-        guard let bar = attribute(application(pid), kAXMenuBarAttribute), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return nil }
-        let menus = ((attribute(bar as! AXUIElement, kAXChildrenAttribute) as? [AXUIElement]) ?? []).dropFirst()
-        for menu in menus.compactMap({ (attribute($0, kAXChildrenAttribute) as? [AXUIElement])?.first }) {
-            for item in (attribute(menu, kAXChildrenAttribute) as? [AXUIElement]) ?? []
-            where string(item, kAXMenuItemCmdCharAttribute)?.uppercased() == key.uppercased()
-                && (attribute(item, kAXMenuItemCmdModifiersAttribute) as? Int) == 0 {
-                return item
+    /// 菜单栏里的菜单项（跳过苹果菜单），标题带「窗口」的子菜单再展开一层（终端的「Shell › New Window ›」），
+    /// 交给 NewWindowMenu 挑。不全展开：大 App 的菜单有上千项
+    static func menuCommands(pid: pid_t) -> [(command: MenuCommand, element: AXUIElement)] {
+        guard let bar = attribute(application(pid), kAXMenuBarAttribute), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return [] }
+        var found: [(command: MenuCommand, element: AXUIElement)] = []
+        func add(_ item: AXUIElement, parent: String?) {
+            let title = string(item, kAXTitleAttribute) ?? ""
+            let submenu = children(item).first
+            found.append((MenuCommand(title: title, key: string(item, kAXMenuItemCmdCharAttribute),
+                                      modifiers: attribute(item, kAXMenuItemCmdModifiersAttribute) as? Int ?? 0,
+                                      opensSubmenu: submenu != nil, parent: parent), item))
+            if parent == nil, let submenu, NewWindowMenu.worthOpening(title) {
+                children(submenu).forEach { add($0, parent: title) }
             }
         }
-        return nil
+        for menu in children(bar as! AXUIElement).dropFirst().compactMap({ children($0).first }) {
+            children(menu).forEach { add($0, parent: nil) }
+        }
+        return found
     }
 
     static func press(_ element: AXUIElement) -> Bool {
