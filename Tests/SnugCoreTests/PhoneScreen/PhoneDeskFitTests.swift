@@ -40,6 +40,8 @@ struct PhoneDeskFitTests {
         #expect(rig.journal.all == ["reshape 101 620×802"])
         #expect(rig.desk.state.screen == .ready(101))
         #expect(rig.desk.state.work == nil)
+        // UU 要切走再切回来才按新尺寸推流：提示一句
+        #expect(rig.desk.state.notice == .reshaped)
         #expect(rig.displays.widths[101] == 620)
     }
 

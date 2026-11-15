@@ -140,7 +140,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 3. **Switch windows**: tap the bottom indicator bar to return to the App Library; choosing another window returns the previous one to its place
 4. **End the session**: windows return to their original positions, text sizes are restored, and the phone screen is removed
 
-On first use, choose your phone model in the top-right corner of the App Library or in Snug's settings, and the phone screen fills your display without letterboxing. If your model isn't listed, enter its screen resolution
+On first use, choose your phone model in the top-right corner of the App Library or in Snug's settings, then switch to another screen in UU Remote and back to "Snug 手机屏", and the phone screen fills your display without letterboxing. If your model isn't listed, enter its screen resolution
 
 ## 🔒 Isolation and Restoration
 

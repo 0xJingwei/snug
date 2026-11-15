@@ -266,6 +266,7 @@ enum RenderSamples {
                 s.config.phone = PhoneChoice(phones.models[4])
                 s.phone.work = .reshaping
             },
+            phoneSample("phone-reshaped") { s, _ in s.phone.notice = .reshaped },
             phoneSample("phone-empty", running: []) { _, _ in },
             phoneSample("phone-loading", running: [], loaded: false) { _, _ in },
         ]

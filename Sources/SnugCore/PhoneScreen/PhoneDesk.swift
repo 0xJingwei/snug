@@ -61,6 +61,8 @@ public final class PhoneDesk {
         case noWindow(app: String)
         /// 请它退出了，等满了还没退，也没有对话框：可以强制退出
         case quitStalled(app: String, pid: Int32)
+        /// 换成了新手机的比例。UU 只在选屏时按屏幕尺寸开推流，比例变了要在 UU 里切走再切回来，点的位置才对（实测）
+        case reshaped
         /// 换了手机型号，但这块屏没能换成新比例（还是原来的）；下次加屏时按新的建
         case reshapeFailed
     }
@@ -503,6 +505,7 @@ public final class PhoneDesk {
             state.notice = .reshapeFailed
             return
         }
+        state.notice = .reshaped
         guard var p = placement else { return }
         // 窗口要的档位按新比例从基准宽度重新找；忘掉上次挪完的样子，露出来时一定重新铺
         p.width = fit.baseWidth
