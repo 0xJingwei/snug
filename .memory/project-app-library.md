@@ -1,6 +1,6 @@
 ---
 name: project-app-library
-description: 进行中的大需求「手机屏 App 资源库」（手机上直接打开、退出、搜索 Mac 上的 App）：设计记录在 feature/app-library 分支的 docs/design/app-library.md，动工前以它为准
+description: 进行中的大需求「手机屏 App 资源库」（手机上直接打开、退出、搜索 Mac 上的 App，Mac 端设置等界面一起按苹果规范重做）：设计记录在 feature/app-library 分支的 docs/design/app-library.md，动工前以它为准
 metadata:
   node_type: memory
   type: project
