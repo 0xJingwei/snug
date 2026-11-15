@@ -544,7 +544,7 @@ private struct SearchPage: View {
         }
     }
 
-    /// 空着时：全部 App 按字母分组（数字、符号开头的归到 #），同 iOS 的 App 资源库
+    /// 空着时：全部 App 按字母分组，数字、符号开头的归到最后的 #，同 iOS 的 App 资源库
     private var alphabetical: some View {
         LazyVStack(alignment: .leading, spacing: 8) {
             ForEach(Self.groups(catalog.installed), id: \.letter) { group in
@@ -560,12 +560,16 @@ private struct SearchPage: View {
 
     private static func groups(_ apps: [InstalledApp]) -> [(letter: String, apps: [InstalledApp])] {
         var groups: [(letter: String, apps: [InstalledApp])] = []
+        var others: [InstalledApp] = []
         for app in apps {
-            let first = app.keys.sortKey.first.map { String($0).uppercased() } ?? "#"
-            let letter = first.range(of: "^[A-Z]$", options: .regularExpression) != nil ? first : "#"
+            guard let first = app.keys.sortKey.first, first.isASCII, first.isLetter else {
+                others.append(app)
+                continue
+            }
+            let letter = first.uppercased()
             if groups.last?.letter == letter { groups[groups.count - 1].apps.append(app) } else { groups.append((letter, [app])) }
         }
-        return groups
+        return others.isEmpty ? groups : groups + [("#", others)]
     }
 
     private func appRow(_ app: AppInfo) -> some View {

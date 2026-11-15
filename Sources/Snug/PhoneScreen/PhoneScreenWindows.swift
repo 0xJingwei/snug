@@ -118,7 +118,12 @@ final class PhonePanel: NSPanel {
 
     /// 平时点面板不让它变成键盘焦点：手机上的键盘输入要留给放上来的窗口；搜索时才打开
     var acceptsKeys = false {
-        didSet { if !acceptsKeys, isKeyWindow { resignKey() } }
+        didSet {
+            // 交还键盘：收起再摆回去才会让出焦点（resignKey 只是通知，调了也还是焦点）
+            guard !acceptsKeys, isKeyWindow, isVisible else { return }
+            orderOut(nil)
+            orderFrontRegardless()
+        }
     }
 
     override var canBecomeKey: Bool { acceptsKeys }

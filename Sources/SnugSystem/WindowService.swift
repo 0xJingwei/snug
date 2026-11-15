@@ -51,8 +51,13 @@ public final class WindowService: WindowControl {
     public func setFullScreen(_ window: WindowKey, _ on: Bool) async {
         await run {
             guard let element = AX.element(for: window) else { return }
-            AX.set(element, AX.fullScreen, on as CFBoolean)
-            Self.wait(seconds: 5) { AX.flag(element, AX.fullScreen) == on }
+            // 正在进出全屏的窗口不理这次设置：App 已有全屏窗口时新开的窗口出生就在进全屏，
+            // 这时退出会被忽略（实测），没变过去就隔一拍再设，动画一走完就生效
+            Self.wait(seconds: 5) {
+                if AX.flag(element, AX.fullScreen) == on { return true }
+                AX.set(element, AX.fullScreen, on as CFBoolean)
+                return false
+            }
             // 等全屏动画走完，不然紧接着的挪动会被动画盖掉
             Thread.sleep(forTimeInterval: 1.2)
         }

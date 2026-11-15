@@ -174,6 +174,8 @@ keep_awake() { caffeinate -d -i -w $$ & }
 
 # MARK: 打包
 
+# 只声明简体中文：界面全是中文，系统给的文字（输入框菜单、权限引导）和 App 名（访达、预览）也跟着中文，
+# 系统语言是英文时也不会混进英文
 write_info_plist() {
   local version=$1
   cat <<PLIST
@@ -190,7 +192,7 @@ write_info_plist() {
   <key>CFBundleShortVersionString</key><string>${version}</string>
   <key>CFBundleVersion</key><string>${version}</string>
   <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
-  <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
+  <key>CFBundleLocalizations</key><array><string>zh-Hans</string></array>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>

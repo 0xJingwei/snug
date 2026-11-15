@@ -5,7 +5,7 @@ import Foundation
 /// 一个 App 的身份。按 bundle ID 认：装着的、在跑的是同一个 App
 public struct AppInfo: Hashable, Sendable, Identifiable {
     public let bundleID: String
-    /// 显示名（和访达里看到的一样，Snug 的界面是中文，系统 App 就是「备忘录」「终端」）
+    /// 显示名：按 Snug 的界面语言（简体中文）取，系统 App 是「备忘录」「终端」，系统语言是英文也一样
     public let name: String
     /// .app 的路径：启动、取图标用。在跑的 App 偶尔读不到
     public let path: String?
