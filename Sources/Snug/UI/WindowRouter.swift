@@ -6,7 +6,6 @@ final class WindowRouter: Navigation {
     private let controller: AppController
     private lazy var settings = SettingsWindowController(state: controller.state, intents: controller, navigation: self)
     private lazy var welcome = WelcomeWindowController(state: controller.state)
-    private lazy var about = AboutWindowController(state: controller.state, intents: controller, navigation: self)
     private lazy var update = UpdateWindowController(state: controller.state, intents: controller)
     private let legacy = LegacyNoticeWindowController()
 
@@ -18,15 +17,15 @@ final class WindowRouter: Navigation {
     }
 
     func openWelcome() { welcome.show() }
-    func openAbout() { about.show() }
+    func openAbout() { settings.show(.about) }
     func openUpdate() { showUpdate(activating: true) }
 
-    /// 查到新版本：能自动更新的弹更新窗口（讲落下了哪几版）；只能手动下载的没有更新日志可看，弹「关于 Snug」
+    /// 查到新版本：能自动更新的弹更新窗口（讲落下了哪几版）；只能手动下载的没有更新日志可看，打开设置的「关于」页
     func showUpdate(activating: Bool) {
         if controller.state.update.available != nil {
             update.show(activating: activating)
         } else {
-            about.show(activating: activating)
+            settings.show(.about, activating: activating)
         }
     }
 

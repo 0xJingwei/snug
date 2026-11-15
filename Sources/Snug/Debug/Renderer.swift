@@ -57,6 +57,7 @@ final class RenderStub: AppIntents, PhoneIntents, Navigation {
     func setGestures(_ on: Bool) {}
     func setZoomSteps(_ steps: Int) {}
     func setLaunchAtLogin(_ on: Bool) {}
+    func openLoginItemsSettings() {}
     func markWelcomed() {}
     func quitLegacyApp() {}
     func quit() {}

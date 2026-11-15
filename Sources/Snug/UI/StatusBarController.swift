@@ -1,8 +1,9 @@
-// 菜单栏：只用来看状态、打开设置、退出。Snug 的操作都在手机上，Mac 这边不用管。
+// 菜单栏：只用来看状态、打开设置和关于、退出。Snug 的操作都在手机上，Mac 这边不用管。
 // 每次展开都按 AppState 现做，和设置窗口永远一致
 import AppKit
 import Observation
 import SnugCore
+import SwiftUI
 
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
@@ -40,19 +41,37 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        let text = StatusText(state)
-        menu.addItem(info(text.headline))
-        if let detail = text.detail { menu.addItem(info(detail)) }
+        menu.addItem(status())
         if state.legacyAppRunning { menu.addItem(action("退出旧版 UU远程伴侣", #selector(quitLegacy), symbol: "xmark.circle")) }
         menu.addItem(.separator())
         menu.addItem(action("设置…", #selector(openSettings), key: ",", symbol: "gearshape"))
+        let about = action("关于 Snug", #selector(openAbout), symbol: "info.circle")
+        // 有新版本：系统的菜单角标，更新在「关于」页里
+        if state.update.hasNewVersion { about.badge = NSMenuItemBadge(string: "新版本") }
+        menu.addItem(about)
+        menu.addItem(.separator())
         menu.addItem(action("退出 Snug", #selector(quit), key: "q", symbol: "power"))
     }
 
-    private func info(_ title: String) -> NSMenuItem {
-        let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        it.isEnabled = false
+    /// 最上面一行：状态圆点 + 此刻的状态和一行说明。只看不点，所以用自定义视图（不会高亮）
+    private func status() -> NSMenuItem {
+        let view = NSHostingView(rootView: MenuStatusView(text: StatusText(state), color: statusColor))
+        view.frame.size = view.fittingSize
+        view.autoresizingMask = [.width]
+        let it = NSMenuItem()
+        it.view = view
         return it
+    }
+
+    /// 绿色：远程中；橙色：要处理（缺权限、连接中断）；灰色：等待连接、手机屏关着
+    private var statusColor: Color {
+        guard state.accessibilityTrusted else { return .orange }
+        guard state.config.phoneScreen else { return .gray }
+        switch state.connection {
+        case .connected: return .green
+        case .reconnecting: return .orange
+        case .idle: return .gray
+        }
     }
 
     private func action(_ title: String, _ sel: Selector, key: String = "", symbol: String) -> NSMenuItem {
@@ -64,5 +83,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func quitLegacy() { intents.quitLegacyApp() }
     @objc private func openSettings() { navigation.openSettings() }
+    @objc private func openAbout() { navigation.openAbout() }
     @objc private func quit() { intents.quit() }
+}
+
+private struct MenuStatusView: View {
+    let text: StatusText
+    let color: Color
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text.headline).font(.system(size: 13, weight: .medium))
+                if let detail = text.detail { Text(detail).font(.system(size: 11)).foregroundStyle(.secondary) }
+            }
+        }
+        .fixedSize()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
 }

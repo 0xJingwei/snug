@@ -47,12 +47,12 @@ struct StatusText: Equatable {
 }
 
 extension LoginItemIssue {
-    /// 设置页底部的提示：写明去哪里处理
-    var text: String {
+    /// 设置页的问题行：出了什么事，去哪里处理
+    var text: StatusText {
         switch self {
-        case .needsApproval: "开机启动待允许 · 系统设置 › 通用 › 登录项"
-        case .notInApplications: "开机启动未生效 · 需位于「应用程序」"
-        case .failed: "开机启动未生效 · 请稍后重试"
+        case .needsApproval: StatusText(headline: "开机启动待允许", detail: "系统设置 › 通用 › 登录项")
+        case .notInApplications: StatusText(headline: "开机启动未生效", detail: "需位于「应用程序」")
+        case .failed: StatusText(headline: "开机启动未生效", detail: "请稍后重试")
         }
     }
 }

@@ -1,4 +1,4 @@
-// 设置、「关于 Snug」、更新窗口共用的搭法：SwiftUI 视图做内容，窗口高度跟着内容（提示出现、进度变化）自动变
+// 更新窗口的搭法：SwiftUI 视图做内容，窗口高度跟着内容（进度变化）自动变；present 设置窗口也用
 import AppKit
 import SwiftUI
 

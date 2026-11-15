@@ -40,6 +40,8 @@ extension AppController: AppIntents {
         refreshLaunchAtLogin()
     }
 
+    func openLoginItemsSettings() { SMAppService.openSystemSettingsLoginItems() }
+
     func refreshLaunchAtLogin() {
         let enabled = SMAppService.mainApp.status == .enabled
         state.update(\.launchAtLogin, enabled)

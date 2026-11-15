@@ -40,7 +40,7 @@ struct UpdateSection: View {
                 Picker("更新源", selection: Binding(get: { state.config.updateSource }, set: { intents.setUpdateSource($0) })) {
                     ForEach(UpdateSource.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
                 .fixedSize()
                 .disabled(state.update.phase != .idle)

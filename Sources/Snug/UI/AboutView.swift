@@ -1,4 +1,4 @@
-// 「关于 Snug」窗口：名称、版本、软件更新、致谢与免责声明。和设置页同一套分组样式，只读 AppState，意图走 AppIntents
+// 设置窗口的「关于」页：名称、版本、软件更新、致谢与免责声明。和通用页同一套分组样式，只读 AppState，意图走 AppIntents
 import AppKit
 import SwiftUI
 import SnugCore
@@ -62,28 +62,7 @@ struct AboutView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
+        .frame(width: SettingsWindowController.width)
         .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-@MainActor
-final class AboutWindowController {
-    private let state: AppState
-    private let intents: any AppIntents
-    private weak var navigation: (any Navigation)?
-    private var window: NSWindow?
-
-    init(state: AppState, intents: any AppIntents, navigation: any Navigation) {
-        self.state = state
-        self.intents = intents
-        self.navigation = navigation
-    }
-
-    func show(activating: Bool = true) {
-        if window == nil, let navigation {
-            window = NSWindow(hosting: AboutView(state: state, intents: intents, navigation: navigation), title: "关于 Snug")
-        }
-        window?.present(activating: activating)
     }
 }

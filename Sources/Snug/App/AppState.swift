@@ -64,6 +64,8 @@ protocol AppIntents: AnyObject {
     func setGestures(_ on: Bool)
     func setZoomSteps(_ steps: Int)
     func setLaunchAtLogin(_ on: Bool)
+    /// 开机启动待允许：直接打开系统设置的「登录项」
+    func openLoginItemsSettings()
     func markWelcomed()
     func quitLegacyApp()
     func quit()
