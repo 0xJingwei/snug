@@ -38,19 +38,20 @@ public enum ControllerKind: Equatable, Sendable {
 
     public var wantsPhoneScreen: Bool { self != .computer }
 
-    /// 同时连着的几台控制端要不要手机屏：有一台不是电脑就要，全是电脑（或一台都没有）不要
+    /// 同时连着的几台控制端要不要手机屏：全是电脑才不要；一台都没读到，和读不到名字一样按手机处理
     public static func wantsPhoneScreen(_ names: [String]) -> Bool {
-        names.contains { ControllerKind(name: $0).wantsPhoneScreen }
+        names.isEmpty || names.contains { ControllerKind(name: $0).wantsPhoneScreen }
     }
 }
 
 extension RemoteSession {
     /// 这次远程要不要手机屏：在一次远程里（断开重连的窗口内也算），控制端里有不是电脑的。
-    /// 按整次远程记住的控制端判断：断开那一拍会被清空，不能因此把电脑控制端当成手机。
-    /// 一直没读到名字，等过 nameGrace 按手机处理
+    /// 按整次远程记住的控制端判断：断开那一拍会被清空，不能因此把电脑控制端当成手机；
+    /// 几台同时连着时先离开的手机也照样算到重连窗口过完
     public func wantsPhoneScreen(now: Date) -> Bool {
         guard let began = episodeBeganAt else { return false }
-        guard !episodeControllers.isEmpty else { return now.timeIntervalSince(began) >= ControllerKind.nameGrace }
-        return ControllerKind.wantsPhoneScreen(episodeControllers)
+        let controllers = episodeControllers(at: now)
+        if controllers.isEmpty, now.timeIntervalSince(began) < ControllerKind.nameGrace { return false }
+        return ControllerKind.wantsPhoneScreen(controllers)
     }
 }

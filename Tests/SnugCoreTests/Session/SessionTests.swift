@@ -112,7 +112,7 @@ struct PhoneDemandTests {
         #expect(!s.wantsPhoneScreen(now: at(2)))
         #expect(!s.wantsPhoneScreen(now: at(16)))
         #expect(s.update(absent, now: at(17.1)) == [.ended])
-        #expect(s.episodeControllers.isEmpty)
+        #expect(s.episodeControllers(at: at(17.1)).isEmpty)
     }
 
     @Test("手机控制端：重连窗口里照样要，手机屏和上面的窗口留着")
@@ -145,7 +145,7 @@ struct PhoneDemandTests {
         #expect(s.wantsPhoneScreen(now: at(2)))
     }
 
-    @Test("回归 #3：电脑和手机同时连着也要（只看第一个控制端会把手机屏撤掉）；手机走了、只剩电脑就不要")
+    @Test("回归 #3：电脑和手机同时连着也要（只看第一个控制端会把手机屏撤掉）；手机走了、只剩电脑，等过重连窗口才不要")
     func phoneAlongsideComputer() {
         var s = RemoteSession()
         _ = s.update(table("markzhang的MacBook Pro"), now: at(0))
@@ -157,7 +157,45 @@ struct PhoneDemandTests {
         _ = s.update(table("iPhone 18 Pro", "markzhang的MacBook Pro"), now: at(97))
         #expect(s.wantsPhoneScreen(now: at(97)))
         _ = s.update(table("markzhang的MacBook Pro"), now: at(120))
-        #expect(!s.wantsPhoneScreen(now: at(120)))
+        #expect(s.wantsPhoneScreen(now: at(135)))
+        _ = s.update(table("markzhang的MacBook Pro"), now: at(135.1))
+        #expect(!s.wantsPhoneScreen(now: at(135.1)))
+    }
+
+    @Test("几台同时连着，表格漏读一拍手机那一行（手机先连、电脑后连时 UU 先单独显示新来的）：一直要")
+    func missedRowKeepsScreen() {
+        var s = RemoteSession()
+        _ = s.update(table("iPhone"), now: at(0))
+        #expect(s.update(table("MacBook Pro"), now: at(10)) == [.controllersChanged(["MacBook Pro"])])
+        #expect(s.wantsPhoneScreen(now: at(10)))
+        _ = s.update(table("iPhone", "MacBook Pro"), now: at(10.5))
+        #expect(s.wantsPhoneScreen(now: at(10.5)))
+        _ = s.update(table("MacBook Pro"), now: at(40))
+        #expect(s.wantsPhoneScreen(now: at(54.9)))
+    }
+
+    @Test("几台同时连着，手机短暂断网：和单独连着一样有 15 秒重连窗口，回来再走又重新计时")
+    func phoneDropsOutOfMixedGroup() {
+        var s = RemoteSession()
+        _ = s.update(table("MacBook Pro", "iPhone"), now: at(0))
+        _ = s.update(table("MacBook Pro"), now: at(5))
+        #expect(s.wantsPhoneScreen(now: at(19)))
+        _ = s.update(table("MacBook Pro", "iPhone"), now: at(19))
+        _ = s.update(table("MacBook Pro"), now: at(30))
+        #expect(s.wantsPhoneScreen(now: at(45)))
+        #expect(!s.wantsPhoneScreen(now: at(45.1)))
+    }
+
+    @Test("几台一起断开、重连时电脑先回来：手机照样等满重连窗口")
+    func computerResumesFirst() {
+        var s = RemoteSession()
+        let absent = UUSignals(overlayVisible: false, controllers: .unrecognized, captureActive: nil)
+        _ = s.update(table("MacBook Pro", "iPhone"), now: at(0))
+        _ = s.update(absent, now: at(1))
+        #expect(s.update(absent, now: at(2)) == [.interrupted])
+        #expect(s.update(table("MacBook Pro"), now: at(6)) == [.resumed(controllers: ["MacBook Pro"])])
+        #expect(s.wantsPhoneScreen(now: at(21)))
+        #expect(!s.wantsPhoneScreen(now: at(21.1)))
     }
 
     @Test("不在远程里：不要")

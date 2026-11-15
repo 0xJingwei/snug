@@ -97,7 +97,8 @@ final class AppController {
         }
         state.update(\.connection, session.isConnected ? .connected : (session.inEpisode ? .reconnecting : .idle))
         state.update(\.controllers, session.controllers)
-        state.update(\.streamedDisplay, sample.streamingDisplay)
+        // 在推哪块屏只能按一路推流推断：几台同时连着时各推各的、日志混在一起，当作不知道（手机屏上的列表照旧刷新）
+        state.update(\.streamedDisplay, session.controllers.count > 1 ? nil : sample.streamingDisplay)
     }
 
     /// 要不要手机屏：开着总开关、有权限，这次远程的控制端里有不是电脑的（见 RemoteSession.wantsPhoneScreen）

@@ -29,7 +29,8 @@ enum UUDump {
             return 0
         }
         print("控制端：")
-        for name in names { print("  \(name) → \(ControllerKind(name: name).wantsPhoneScreen ? "加手机屏" : "电脑，不加")") }
+        for name in names { print("  \(name)：\(ControllerKind(name: name) == .computer ? "电脑" : "手机、平板或认不出")") }
+        print(ControllerKind.wantsPhoneScreen(names) ? "→ 有一台不是电脑，加手机屏" : "→ 全是电脑，不加")
         return 0
     }
 
