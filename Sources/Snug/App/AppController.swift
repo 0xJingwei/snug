@@ -14,9 +14,7 @@ final class AppController {
     let state = AppState()
     let updater: Updater
     let desk: PhoneDesk
-    let windows = WindowService()
-    let apps = AppService()
-    /// 手机屏 App 资源库的统一数据源
+    /// 手机屏 App 资源库的统一数据源。界面碰得到的系统入口只有 desk 和它
     let catalog: AppCatalog
     /// 用户从菜单或设置里点「退出」（由 AppDelegate 接到退出流程上）
     var onQuitRequested: (() -> Void)?
@@ -38,6 +36,8 @@ final class AppController {
         self.previewPhone = previewPhone
         store = ConfigStore(url: paths.config)
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+        let windows = WindowService()
+        let apps = AppService()
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
                          defaultZoom: store.config.zoomSteps)
         catalog = AppCatalog(apps: apps, windows: windows)
@@ -52,6 +52,7 @@ final class AppController {
     /// 开始监控。有权限的话先把上次没放回去的窗口放回去
     func start() {
         desk.onChange = { [weak self] phone in self?.phoneChanged(phone) }
+        desk.onGone = { [weak self] gone in self?.catalog.forget(gone) }
         desk.onTopologyChange = { [weak self] in
             guard let self else { return }
             session.noteSelfInducedChange(at: now)

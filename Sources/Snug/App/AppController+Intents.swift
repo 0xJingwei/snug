@@ -131,6 +131,7 @@ extension AppController: PhoneIntents {
     func newWindow(_ app: RunningApp) { desk.newWindow(app) }
     func quit(_ app: RunningApp) { desk.quit(app) }
     func forceQuit(pid: Int32, app: String) { desk.forceQuit(pid: pid, app: app) }
+    func close(_ window: WindowInfo) { desk.close(window) }
     func dismissNotice() { desk.dismissNotice() }
     func showList() { desk.showList() }
     func returnToPlaced() { desk.returnToPlaced() }

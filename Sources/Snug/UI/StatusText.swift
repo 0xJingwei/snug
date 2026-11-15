@@ -1,4 +1,5 @@
-// 状态文案：一个标题 + 一个短说明。把 AppState 翻成菜单栏和设置窗口共用的状态，也给手机屏上的提示用。只用短词，书面、克制
+// 状态文案：一个标题 + 一个短说明。把 AppState 翻成菜单栏和设置窗口共用的状态，也给手机屏上的提示用；
+// 手机屏列表里窗口、App 的几处说法也在这里。只用短词，书面、克制
 import SnugCore
 
 struct StatusText: Equatable {
@@ -71,4 +72,14 @@ extension PhoneDesk.Notice {
         case .quitStalled(let app, _): StatusText(headline: "\(app) 未退出", detail: "强制退出将丢失未存储的内容")
         }
     }
+}
+
+extension WindowInfo {
+    /// 列表里显示的标题
+    var displayTitle: String { title.isEmpty ? "无标题" : title }
+}
+
+extension RunningApp {
+    /// 开着几个窗口
+    var windowSummary: String { windows.isEmpty ? "没有窗口" : "\(windows.count) 个窗口" }
 }

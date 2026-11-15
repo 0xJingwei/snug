@@ -199,6 +199,12 @@ enum RenderSamples {
             phoneSample("phone-opening") { s, _ in s.phone.work = .opening(running[2].app) },
             phoneSample("phone-placing") { s, _ in s.phone.work = .placing(windows[1]) },
             phoneSample("phone-quitting") { s, _ in s.phone.quitting = [2] },
+            phoneSample("phone-confirm-quit", confirming: .quit(2)) { _, _ in },
+            phoneSample("phone-confirm-close", confirming: .close(windows[4].key)) { s, _ in s.phone.placed = placed },
+            phoneSample("phone-closing-dark", dark: true) { s, _ in
+                s.phone.placed = placed
+                s.phone.closing = [windows[4].key]
+            },
             phoneSample("phone-notice") { s, _ in
                 s.phone.placed = placed
                 s.phone.notice = .windowUnresponsive(app: windows[1].app)
@@ -221,7 +227,7 @@ enum RenderSamples {
     }
 
     private static func phoneSample(_ name: String, dark: Bool = false, tab: PhoneHomeView.Tab = .running,
-                                    running list: [RunningApp] = running, loaded: Bool = true,
+                                    confirming: PhoneHomeView.Confirm? = nil, running list: [RunningApp] = running, loaded: Bool = true,
                                     _ configure: @escaping @MainActor (AppState, PhoneSearch) -> Void) -> RenderSample {
         let size = ScreenFit.size(width: ScreenFit.baseWidth)
         return RenderSample(name: name, dark: dark, size: size) {
@@ -230,7 +236,7 @@ enum RenderSamples {
             let search = PhoneSearch()
             configure(s, search)
             let catalog = AppCatalog(sample: list, installed: installed, loaded: loaded)
-            return AnyView(PhoneHomeView(state: s, catalog: catalog, search: search, intents: stub, tab: tab)
+            return AnyView(PhoneHomeView(state: s, catalog: catalog, search: search, intents: stub, tab: tab, confirming: confirming)
                 .frame(width: size.width, height: size.height))
         }
     }

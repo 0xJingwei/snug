@@ -428,4 +428,43 @@ struct PhoneDeskAppTests {
         #expect(rig.desk.state.notice == .windowUnresponsive(app: "Finder"))
         #expect(rig.desk.state.closing.isEmpty)
     }
+
+    // MARK: 告诉数据源
+
+    @Test("退完、关上的那一刻告诉数据源，而且在撤掉「正在退出 / 正在关闭」之前：列表同一帧里去掉它，不以原样闪回")
+    func reportsGone() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        let notesRunning = rig.apps.run(notesApp, pid: 13, windows: [notes])
+        rig.apps.onQuit(notesApp, .slow(after: 3))
+        var gone: [PhoneDesk.Gone] = []
+        var goneWhenSettled: [[PhoneDesk.Gone]] = []
+        var busy = false
+        rig.desk.onGone = { gone.append($0) }
+        rig.desk.onChange = { state in
+            let now = !state.quitting.isEmpty || !state.closing.isEmpty
+            if busy, !now { goneWhenSettled.append(gone) }
+            busy = now
+        }
+        rig.desk.quit(notesRunning)
+        await rig.desk.idle()
+        rig.desk.close(finder)
+        await rig.desk.idle()
+        #expect(goneWhenSettled == [[.app(13)], [.app(13), .window(finder.key)]])
+    }
+
+    @Test("没退、没关（点了取消、卡住）不告诉数据源")
+    func keepsWhenNotGone() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        let notesRunning = rig.apps.run(notesApp, pid: 13, windows: [notes])
+        rig.apps.onQuit(notesApp, .asks(notes.key.id, answer: .cancel(after: 2)))
+        rig.windows.onClose(finder.key, .stalls)
+        var gone: [PhoneDesk.Gone] = []
+        rig.desk.onGone = { gone.append($0) }
+        rig.desk.quit(notesRunning)
+        rig.desk.close(finder)
+        await rig.desk.idle()
+        #expect(gone.isEmpty)
+    }
 }

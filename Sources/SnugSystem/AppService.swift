@@ -38,10 +38,13 @@ public final class AppService: AppControl {
         Self.regular().compactMap { app in Self.info(for: app).map { RunningApp(pid: app.processIdentifier, app: $0, windows: []) } }
     }
 
-    /// 普通 App（有 Dock 图标的），不含 Snug 自己。窗口快照也只拍这些
+    /// 普通 App（有 Dock 图标的），不含 Snug 自己。窗口快照也只拍这些。
+    /// 刚退出的 App 还会在 runningApplications 里留一会儿（等主线程处理完通知），按 isTerminated 去掉
     @MainActor
     static func regular() -> [NSRunningApplication] {
-        NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && $0 != NSRunningApplication.current }
+        NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isTerminated && $0 != NSRunningApplication.current
+        }
     }
 
     /// 找不到 .app 时给系统的通用 App 图标

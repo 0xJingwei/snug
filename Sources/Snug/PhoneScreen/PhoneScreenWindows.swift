@@ -58,13 +58,17 @@ final class PhoneScreenWindows {
         homeBarView?.scale = ScreenFit.scale(screenWidth: screen.frame.width)
 
         let showList = phone.listVisible || phone.placed == nil
+        // 手机在看这块屏。不知道 UU 在推哪块屏（推流日志没读到）时当作在看
+        let watching = state.streamedDisplay == nil || state.phoneInUse
         if showList { list.orderFrontRegardless() } else { list.orderOut(nil) }
-        if !showList { search.end() }
+        // 手机离开了就结束搜索，交还键盘：不然在主屏上打的字会进到看不见的搜索框
+        if !showList || !watching { search.end() }
+        // 只在进入搜索那一下拿键盘：之后用户点了别的窗口，不能每次状态一变就抢回来
+        let entering = search.active && !list.acceptsKeys
         list.acceptsKeys = search.active
-        if search.active { list.makeKey() }
-        // 列表每轮要把所有 App 的窗口读一遍，还和搬窗口共用一条队：手机没在看手机屏就不刷。
-        // 不知道 UU 在推哪块屏（推流日志没读到）时照旧刷
-        if showList, state.streamedDisplay == nil || state.phoneInUse {
+        if entering { list.makeKey() }
+        // 列表每轮要把所有 App 的窗口读一遍，还和搬窗口共用一条队：手机没在看手机屏就不刷
+        if showList, watching {
             catalog.startRefreshing()
         } else {
             catalog.stopRefreshing()

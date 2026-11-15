@@ -62,6 +62,12 @@ public final class PhoneDesk {
         case quitStalled(app: String, pid: Int32)
     }
 
+    /// 盯着的 App 退完了、窗口关上了
+    public enum Gone: Equatable, Sendable {
+        case app(Int32)
+        case window(WindowKey)
+    }
+
     public struct Placed: Equatable, Sendable {
         public let window: WindowInfo
         /// 比原来放大了几级
@@ -109,6 +115,9 @@ public final class PhoneDesk {
         didSet { if state != oldValue { onChange?(state) } }
     }
     public var onChange: ((State) -> Void)?
+    /// 确认 App 退完、窗口关上的那一刻，在撤掉「正在退出 / 正在关闭」之前：数据源据此马上去掉它，
+    /// 不然要等下一轮刷新，卡片会以原样闪回一下
+    public var onGone: ((Gone) -> Void)?
     /// 即将加屏、撤屏：会话层据此暂缓断开判定（屏幕组合一变，UU 的信号会抖一下）
     public var onTopologyChange: (() -> Void)?
     /// 设置里的默认字号级数
@@ -675,7 +684,9 @@ public final class PhoneDesk {
             let answer = await self.awaitAnswer(from: app.pid, within: Self.quitWait, done: { await !self.apps.isRunning(pid: app.pid) })
             guard !Task.isCancelled else { return }
             switch answer {
-            case .done: Log.info("\(app.app.name) 已退出")
+            case .done:
+                Log.info("\(app.app.name) 已退出")
+                self.onGone?(.app(app.pid))
             case .canceled: Log.info("\(app.app.name) 没退出（对话框里点了取消）")
             case .stalled:
                 Log.warn("\(app.app.name) 请它退出 \(Int(Self.quitWait))s 后还在，也没有对话框")
@@ -688,6 +699,7 @@ public final class PhoneDesk {
                 }
                 guard !Task.isCancelled, await !self.apps.isRunning(pid: app.pid) else { return }
                 Log.info("\(app.app.name) 后来自己退出了")
+                self.onGone?(.app(app.pid))
                 if self.state.notice == stalled { self.state.notice = nil }
             }
         }
@@ -700,7 +712,9 @@ public final class PhoneDesk {
             let answer = await self.awaitAnswer(from: window.key.pid, within: Self.closeWait, done: { await !self.windows.exists(window.key) })
             guard !Task.isCancelled else { return }
             switch answer {
-            case .done: Log.info("\(window.label) 已关闭")
+            case .done:
+                Log.info("\(window.label) 已关闭")
+                self.onGone?(.window(window.key))
             case .canceled: Log.info("\(window.label) 没关（对话框里点了取消）")
             case .stalled:
                 Log.warn("\(window.label) 请它关掉 \(Int(Self.closeWait))s 后还在，也没有对话框")

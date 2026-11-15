@@ -70,6 +70,7 @@ final class RenderStub: AppIntents, PhoneIntents, Navigation {
     func newWindow(_ app: RunningApp) {}
     func quit(_ app: RunningApp) {}
     func forceQuit(pid: Int32, app: String) {}
+    func close(_ window: WindowInfo) {}
     func dismissNotice() {}
     func showList() {}
     func returnToPlaced() {}

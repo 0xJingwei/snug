@@ -101,4 +101,20 @@ struct AppListTests {
         #expect(AppList.action(for: notesApp.app, running: apps) == .open(notesApp.app))
         #expect(AppList.action(for: code.app, running: apps) == .open(code.app))
     }
+
+    @Test("按首字母分组：中文按拼音首字母，数字、符号、表情开头的归到最后的 #，组内保持原顺序")
+    func grouped() {
+        let list = AppList.sorted([ghosttyApp, notesApp, bionic, onePassword, code, memos, installed("x.emoji", "🎵 音乐")])
+        let groups = AppList.grouped(list)
+        #expect(groups.map(\.letter) == ["B", "G", "V", "Y", "#"])
+        #expect(groups.map { $0.apps.map(\.app.name) } == [["备忘录", "Bionic"], ["Ghostty"], ["Visual Studio Code"], ["语音备忘录"],
+                                                          ["🎵 音乐", "1Password"]])
+        #expect(AppList.grouped([]).isEmpty)
+    }
+
+    @Test("访达不给退出：Mac 上它的菜单、程序坞里都没有「退出」")
+    func canQuit() {
+        #expect(!AppList.canQuit(app("com.apple.finder", "访达")))
+        #expect(AppList.canQuit(ghosttyApp.app))
+    }
 }

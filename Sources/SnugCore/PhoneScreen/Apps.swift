@@ -83,6 +83,11 @@ public enum AppList {
     /// 不出现在资源库里的 App：UU远程 自己（把遥控器放到手机屏上没有意义，退了它远程就断了）
     public static let excludedBundles: Set<String> = [UURemote.bundleID]
 
+    /// 不给退出的 App：访达。同 Mac，它的菜单、程序坞里都没有「退出」（实测 11-14 terminate 能退掉，桌面图标跟着没了）
+    private static let unquittableBundles: Set<String> = ["com.apple.finder"]
+
+    public static func canQuit(_ app: AppInfo) -> Bool { !unquittableBundles.contains(app.bundleID) }
+
     /// 在跑的 App 按最近用过排，和 iPhone 的多任务界面一样：App 按它最前面那个窗口排，App 里的窗口也按前后层次排。
     /// frontToBack 是屏上窗口从前到后的编号；不在里面的窗口（别的桌面上的）、没有窗口的 App 排后面，彼此保持原顺序
     public static func ordered(_ apps: [RunningApp], frontToBack: [UInt32]) -> [RunningApp] {
@@ -120,6 +125,25 @@ public enum AppList {
         return apps
             .filter { !excludedBundles.contains($0.app.bundleID) && seen.insert($0.app.bundleID).inserted }
             .sorted { $0.keys.sortKey.localizedStandardCompare($1.keys.sortKey) == .orderedAscending }
+    }
+
+    /// 首字母相同的一组 App
+    public struct LetterGroup: Equatable, Sendable, Identifiable {
+        public let letter: String
+        public let apps: [InstalledApp]
+        public var id: String { letter }
+    }
+
+    /// 按首字母分组（搜索页空着时，同 iOS 的 App 资源库）：中文按拼音首字母，数字、符号、表情开头的归到最后的 #。
+    /// 组按字母排，组内保持传进来的顺序（传 sorted 的结果就是字典序）
+    public static func grouped(_ apps: [InstalledApp]) -> [LetterGroup] {
+        let groups = Dictionary(grouping: apps) { app -> String in
+            guard let first = app.keys.sortKey.first, first.isASCII, first.isLetter else { return "#" }
+            return first.uppercased()
+        }
+        return groups
+            .sorted { ($0.key == "#" ? 1 : 0, $0.key) < ($1.key == "#" ? 1 : 0, $1.key) }
+            .map { LetterGroup(letter: $0.key, apps: $0.value) }
     }
 
     public struct SearchResult: Equatable, Sendable {
