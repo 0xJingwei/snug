@@ -14,7 +14,7 @@ let safariHome = CGRect(x: 0, y: 25, width: 1512, height: 920)
 /// Safari 退出全屏后的平时位置
 let safariWindowed = CGRect(x: 200, y: 100, width: 1000, height: 700)
 let notesHome = CGRect(x: 400, y: 300, width: 700, height: 500)
-let phoneArea = FakeDisplays.area(width: ScreenFit.baseWidth)
+let phoneArea = FakeDisplays.area(width: ScreenFit.standard.baseWidth)
 
 /// 一套假系统 + 一个 PhoneDesk。每个用例一个临时数据目录
 @MainActor

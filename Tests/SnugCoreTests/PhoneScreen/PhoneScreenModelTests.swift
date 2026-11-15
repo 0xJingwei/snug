@@ -5,11 +5,11 @@ import Testing
 
 @Suite("手机屏的规格")
 struct PhoneScreenSpecTests {
-    @Test("物理尺寸按像素上限、220ppi 折算（不是手机的 460ppi）")
+    @Test("物理尺寸按像素上限（框住所有比例）、220ppi 折算（不是手机的 460ppi）")
     func millimeters() {
         let mm = PhoneScreenSpec.millimeters
         #expect(abs(mm.width - 2160.0 / 220 * 25.4) < 0.001)
-        #expect(abs(mm.height - 3800.0 / 220 * 25.4) < 0.001)
+        #expect(abs(mm.height - 4320.0 / 220 * 25.4) < 0.001)
     }
 
     @Test("一个固定身份，外加两个备用，互不重复")

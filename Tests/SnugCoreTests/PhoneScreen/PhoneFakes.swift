@@ -23,6 +23,8 @@ final class FakeDisplays: PhoneDisplays {
     var failuresLeft = 0
     /// 换档不成（帮手进程失败）：屏还是原来那一档
     var switchFails = false
+    /// 换比例不成：屏还是原来的档位
+    var reshapeFails = false
     /// 读不到可放区域（屏幕组合还在变）
     var areaUnavailable = false
     /// 加屏、撤屏时 macOS 的副作用（把窗口拉过去、挪走）
@@ -34,17 +36,19 @@ final class FakeDisplays: PhoneDisplays {
     private(set) var retiredAt: [DisplayID: TimeInterval] = [:]
     /// 每块屏此刻是哪一档；建好时是基准宽度。设成别的值模拟系统自己改了模式
     var widths: [DisplayID: Int] = [:]
+    /// 每块屏登记的是哪个比例的档位
+    private(set) var fits: [DisplayID: ScreenFit] = [:]
 
     init(journal: Journal) { self.journal = journal }
 
     /// 这一档的可放区域，和真的一样：整屏扣掉菜单栏和（跟着缩放的）底部小横条
-    nonisolated static func area(width: Int) -> CGRect {
-        let size = ScreenFit.size(width: width)
+    nonisolated static func area(width: Int, fit: ScreenFit = .standard) -> CGRect {
+        let size = fit.size(width: width)
         let bar = ScreenFit.homeBarHeight(screenWidth: size.width)
         return CGRect(x: origin.x, y: origin.y + menuBar, width: size.width, height: size.height - menuBar - bar)
     }
 
-    func create() async throws -> DisplayID {
+    func create(_ fit: ScreenFit) async throws -> DisplayID {
         journal.add("create")
         if failuresLeft > 0 {
             failuresLeft -= 1
@@ -52,7 +56,8 @@ final class FakeDisplays: PhoneDisplays {
         }
         nextID += 1
         createdAt[nextID] = clock?()
-        widths[nextID] = ScreenFit.baseWidth
+        widths[nextID] = fit.baseWidth
+        fits[nextID] = fit
         onCreate?()
         return nextID
     }
@@ -61,7 +66,16 @@ final class FakeDisplays: PhoneDisplays {
         journal.add("retire \(id)")
         retiredAt[id] = clock?()
         widths[id] = nil
+        fits[id] = nil
         onRetire?()
+    }
+
+    func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool {
+        journal.add("reshape \(id) \(fit)")
+        guard !reshapeFails, widths[id] != nil else { return false }
+        fits[id] = fit
+        widths[id] = fit.baseWidth
+        return true
     }
 
     func width(_ id: DisplayID) -> Int? { widths[id] }
@@ -72,12 +86,13 @@ final class FakeDisplays: PhoneDisplays {
     }
 
     func bounds(_ id: DisplayID) -> CGRect? {
-        widths[id].map { CGRect(origin: Self.origin, size: ScreenFit.size(width: $0)) }
+        guard let width = widths[id], let fit = fits[id] else { return nil }
+        return CGRect(origin: Self.origin, size: fit.size(width: width))
     }
 
     func windowArea(_ id: DisplayID) -> CGRect? {
-        guard !areaUnavailable, let width = widths[id] else { return nil }
-        return Self.area(width: width)
+        guard !areaUnavailable, let width = widths[id], let fit = fits[id] else { return nil }
+        return Self.area(width: width, fit: fit)
     }
 
     /// 假主屏：左上角在原点，1512 宽，扣掉菜单栏

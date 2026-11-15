@@ -13,6 +13,20 @@ struct ConfigModelTests {
         #expect(!c.welcomed)
         #expect(c.updateSource == .tencent)
         #expect(c.lastVersion == nil)
+        #expect(c.phone == .standard)
+    }
+
+    @Test("手机型号：老配置里没有就用默认（iPhone 17 Pro Max）；手改坏了（横着写、不是正数、缺字段）用默认，不连累别的设置")
+    func phone() throws {
+        let decode = { (json: String) in try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8)) }
+        #expect(try decode(#"{"zoomSteps":3}"#).phone == .standard)
+        let custom = try decode(#"{"phone":{"screen":{"width":1080,"height":2400}}}"#)
+        #expect(custom.phone == PhoneChoice(model: nil, screen: PhoneScreen(width: 1080, height: 2400)))
+        for bad in [#"{"width":2400,"height":1080}"#, #"{"width":0,"height":2400}"#, #"{"width":1080}"#] {
+            let c = try decode(#"{"zoomSteps":3,"phone":{"screen":\#(bad)}}"#)
+            #expect(c.phone == .standard)
+            #expect(c.zoomSteps == 3)
+        }
     }
 
     @Test("不认识的更新源（比如更新的版本写的）用默认值，不把整份配置判为损坏")
@@ -47,6 +61,7 @@ struct ConfigModelTests {
         c.welcomed = true
         c.updateSource = .github
         c.lastVersion = Version(major: 2, minor: 1, patch: 0)
+        c.phone = PhoneChoice(model: "华为 Mate 70 Pro", screen: PhoneScreen(width: 1260, height: 2832))
         #expect(try JSONDecoder().decode(AppConfig.self, from: JSONEncoder().encode(c)) == c)
     }
 }

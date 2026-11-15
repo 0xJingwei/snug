@@ -6,14 +6,16 @@ import Foundation
 /// 建屏、撤屏、换档。CGVirtualDisplay 要在主线程建和释放
 @MainActor
 public protocol PhoneDisplays: AnyObject {
-    /// 建一块手机屏（档位见 ScreenFit），等它上线，尽量切到基准宽度（切不成只记日志、照样返回）。
+    /// 按 fit 建一块手机屏（登记它的每一档），等它上线，尽量切到基准宽度（切不成只记日志、照样返回）。
     /// 上线不了就换备用身份，都不行就抛错
-    func create() async throws -> DisplayID
+    func create(_ fit: ScreenFit) async throws -> DisplayID
+    /// 换比例：在线换成 fit 的档位（屏不掉线、编号不变，UU 里选中的屏不丢），再切到基准宽度。换不成返回 false，屏还是原来的档位
+    func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool
     /// 释放，等它下线
     func retire(_ id: DisplayID) async
     /// 此刻是哪一档（2 倍模式的宽度，点）；不是 2 倍、或屏不在了返回 nil
     func width(_ id: DisplayID) -> Int?
-    /// 换到这一档的 2 倍模式，等界面认到新尺寸再返回。换不成只记日志：窗口照样能用，只是没铺满
+    /// 换到这一档的 2 倍模式（高按这块屏现在的比例），等界面认到新尺寸再返回。换不成只记日志：窗口照样能用，只是没铺满
     func setWidth(_ id: DisplayID, _ width: Int) async
     /// 整块屏的范围（辅助功能坐标，左上原点）。撤屏前用它认出原本就在这块屏上的窗口
     func bounds(_ id: DisplayID) -> CGRect?

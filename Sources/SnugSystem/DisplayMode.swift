@@ -31,13 +31,20 @@ public enum DisplayMode {
         return "\(m.width)x\(m.height)pt/\(m.pixelWidth)x\(m.pixelHeight)px"
     }
 
-    /// 帮手进程里调用：切到 2 倍的 width×height（点）。只对本次登录生效
-    public static func switchToHiDPI(_ id: DisplayID, width: Int, height: Int) -> Outcome {
+    /// 系统列出了 width×height 的 2 倍模式没有（换了模式表要等一会儿才列出来）
+    public static func hasHiDPI(_ id: DisplayID, width: Int, height: Int) -> Bool {
+        hiDPIMode(id, width: width, height: height) != nil
+    }
+
+    private static func hiDPIMode(_ id: DisplayID, width: Int, height: Int) -> CGDisplayMode? {
         let options = [kCGDisplayShowDuplicateLowResolutionModes: true] as CFDictionary
         let modes = (CGDisplayCopyAllDisplayModes(id, options) as? [CGDisplayMode]) ?? []
-        guard let mode = modes.first(where: { $0.width == width && $0.height == height && $0.pixelWidth == 2 * width }) else {
-            return .unavailable
-        }
+        return modes.first { $0.width == width && $0.height == height && $0.pixelWidth == 2 * width }
+    }
+
+    /// 帮手进程里调用：切到 2 倍的 width×height（点）。只对本次登录生效
+    public static func switchToHiDPI(_ id: DisplayID, width: Int, height: Int) -> Outcome {
+        guard let mode = hiDPIMode(id, width: width, height: height) else { return .unavailable }
         var config: CGDisplayConfigRef?
         let begin = CGBeginDisplayConfiguration(&config)
         guard begin == .success else { return .failed(begin) }

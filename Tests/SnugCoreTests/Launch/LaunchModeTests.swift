@@ -23,9 +23,9 @@ struct LaunchModeTests {
         }
     }
 
-    @Test("--set-mode <屏幕编号> <宽>")
+    @Test("--set-mode <屏幕编号> <宽> <高>")
     func setMode() throws {
-        #expect(try LaunchMode.parse(["--set-mode", "14", "740"]) == .setMode(display: 14, width: 740))
+        #expect(try LaunchMode.parse(["--set-mode", "14", "740", "1302"]) == .setMode(display: 14, width: 740, height: 1302))
     }
 
     @Test("--dump-uu、--preview-phone")
@@ -38,8 +38,9 @@ struct LaunchModeTests {
     func errors() {
         #expect(throws: LaunchModeError.missingValue("--render-settings")) { try LaunchMode.parse(["--render-settings"]) }
         #expect(throws: LaunchModeError.missingValue("--set-mode")) { try LaunchMode.parse(["--set-mode", "14"]) }
-        #expect(throws: LaunchModeError.invalidNumber("--set-mode", "abc")) { try LaunchMode.parse(["--set-mode", "abc", "540"]) }
-        #expect(throws: LaunchModeError.invalidNumber("--set-mode", "0")) { try LaunchMode.parse(["--set-mode", "14", "0"]) }
+        #expect(throws: LaunchModeError.missingValue("--set-mode")) { try LaunchMode.parse(["--set-mode", "14", "540"]) }
+        #expect(throws: LaunchModeError.invalidNumber("--set-mode", "abc")) { try LaunchMode.parse(["--set-mode", "abc", "540", "950"]) }
+        #expect(throws: LaunchModeError.invalidNumber("--set-mode", "0")) { try LaunchMode.parse(["--set-mode", "14", "0", "950"]) }
         #expect(throws: LaunchModeError.conflicting("--dump-uu", "--render-about")) {
             try LaunchMode.parse(["--dump-uu", "--render-about", "/tmp/out"])
         }
