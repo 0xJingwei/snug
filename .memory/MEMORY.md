@@ -4,13 +4,14 @@
 - [通用 skill 路由](skill-routing-general.md) — 密钥、多仓、云运维、Multica、编排、长任务、去 AI 腔用哪个 skill
 - [iOS skill 路由](skill-routing-ios.md) — SwiftUI 视图、iOS 验证闭环用哪个 skill
 - [项目定位](project-positioning.md) — 承接的自有项目，保留原作者版权与致谢；2.0.0 已发布，本地数据格式变更要带迁移
-- [产品](project-product.md) — 目标与已拍板的形态：可选竖屏手机屏、默认同原版 UU、屏幕适配按窗口换档；砍横屏、删设主屏、不做键盘避让
+- [产品](project-product.md) — 目标与已拍板的形态：可选竖屏手机屏、默认同原版 UU、有手机或平板连着才加屏、屏幕适配按窗口换档；只做手机远程，不做电脑远程去黑边
 - [手机屏实测坑](project-phone-screen.md) — 多数已在代码注释和 docs；这里留 UU 事件形态、ColorSync 排障、自测别抢焦点、换档实测
 - [发版](project-release.md) — 只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123
 - [国内源](project-domestic-mirror.md) — dl.zephyrxiang.com/snug/ 放安装包与 README 媒体；README 图片经 GitHub 代理、动图 ≤5 MB；证书 2027-01-12 到期
 - [产品思维](feedback-product-thinking.md) — 用户无感、可选不强制、隔离干净；验证用的步骤不进产品
 - [界面规范](feedback-ui-style.md) — 图标只用 SF Symbols；文字短词、书面、克制；每个状态讲清楚
 - [对外文案](feedback-doc-writing.md) — 书面语、提炼不照抄；分点、图文对应；打码只糊必要的一小块
+- [回复 issue](feedback-issue-replies.md) — 不关别人的 issue；婉拒讲清定位不同、语气平和；直接发不用再审
 - [直接修不建 issue](feedback-direct-fix-no-issues.md) — bug 直接修、重构直接做，追溯靠 commit 信息
 - [Workflow 使用](feedback-workflow-scale.md) — 起之前先跟主人确认；默认自己小步快跑；真要起时 5 个左右、两段链路
 - [宣传片](feedback-promo-video.md) — 在 kineto 做：发布会式快节奏、代码画为主、场景可演绎细节必须真；给 kineto 只给方向
