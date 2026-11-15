@@ -90,14 +90,22 @@ public final class AppService: AppControl {
         }
     }
 
-    public func quit(pid: Int32) async {
-        guard let app = NSRunningApplication(processIdentifier: pid), !app.terminate() else { return }
-        Log.warn("退出请求没发出去（pid \(pid)）")
+    public func quit(pid: Int32) async -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return true }
+        guard app.terminate() else {
+            Log.warn("退出请求没发出去（pid \(pid)）")
+            return false
+        }
+        return true
     }
 
-    public func forceQuit(pid: Int32) async {
-        guard let app = NSRunningApplication(processIdentifier: pid), !app.forceTerminate() else { return }
-        Log.warn("强制退出请求没发出去（pid \(pid)）")
+    public func forceQuit(pid: Int32) async -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return true }
+        guard app.forceTerminate() else {
+            Log.warn("强制退出请求没发出去（pid \(pid)）")
+            return false
+        }
+        return true
     }
 
     public func isRunning(pid: Int32) async -> Bool {

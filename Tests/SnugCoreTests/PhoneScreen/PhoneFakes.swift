@@ -319,6 +319,8 @@ final class FakeApps: AppControl {
         case asks(UInt32, dialog: Bool = false, answer: Answer)
         /// 一直不退
         case stalls
+        /// 请求送不到（terminate() 交回 false）
+        case refuses
     }
 
     let journal: Journal
@@ -333,6 +335,7 @@ final class FakeApps: AppControl {
     private let crashes = Locked<[String: TimeInterval]>([:])
     private let nextPID = Locked<Int32>(500)
     private let launchFails = Locked(false)
+    private let forceRefused = Locked(false)
 
     init(journal: Journal, windows: FakeWindows, timeline: ManualTimeline) {
         self.journal = journal
@@ -353,6 +356,8 @@ final class FakeApps: AppControl {
     func willReshow(_ app: AppInfo, id: UInt32) { reshows.withLock { $0[app.bundleID] = id } }
     /// 打不开（启动失败）
     func failLaunches() { launchFails.withLock { $0 = true } }
+    /// 强制退出的请求送不到
+    func refuseForceQuit() { forceRefused.withLock { $0 = true } }
     /// 启动 after 秒后自己退了（崩溃），一个窗口都没开出来
     func willCrash(_ app: AppInfo, after: TimeInterval) { crashes.withLock { $0[app.bundleID] = after } }
 
@@ -389,9 +394,9 @@ final class FakeApps: AppControl {
         return true
     }
 
-    func quit(pid: Int32) async {
+    func quit(pid: Int32) async -> Bool {
         journal.add("quit \(pid)")
-        guard let app = running.withLock({ $0[pid] }) else { return }
+        guard let app = running.withLock({ $0[pid] }) else { return true }
         switch quits.withLock({ $0[app.bundleID] }) ?? .exits {
         case .exits: exit(pid)
         case .slow(let after): exitsAt.withLock { $0[pid] = timeline.now + after }
@@ -406,12 +411,16 @@ final class FakeApps: AppControl {
             case .cancel(let after): windows.ask(key, answeredAfter: after) { if dialog { self.windows.vanish(key) } }
             }
         case .stalls: break
+        case .refuses: return false
         }
+        return true
     }
 
-    func forceQuit(pid: Int32) async {
+    func forceQuit(pid: Int32) async -> Bool {
         journal.add("force \(pid)")
+        guard !forceRefused.withLock({ $0 }) else { return false }
         exit(pid)
+        return true
     }
 
     func isRunning(pid: Int32) async -> Bool {

@@ -265,6 +265,32 @@ struct PhoneDeskAppTests {
         #expect(await rig.apps.isRunning(pid: 600) == false)
     }
 
+    @Test("退出请求没送到：不白等 10 秒，马上提示无响应")
+    func quitRefused() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        let app = rig.apps.run(chat, pid: 600)
+        rig.apps.onQuit(chat, .refuses)
+        let started = rig.timeline.now
+        rig.desk.quit(app)
+        await rig.desk.idle()
+        #expect(rig.desk.state.notice == .windowUnresponsive(app: "ChatGPT"))
+        #expect(rig.desk.state.quitting.isEmpty)
+        #expect(rig.timeline.now - started < PhoneDesk.quitWait)
+    }
+
+    @Test("强制退出请求没送到：提示无响应，不悄悄算了")
+    func forceQuitRefused() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        rig.apps.run(chat, pid: 600)
+        rig.apps.refuseForceQuit()
+        rig.desk.forceQuit(pid: 600, app: "ChatGPT")
+        await rig.desk.idle()
+        #expect(rig.desk.state.notice == .windowUnresponsive(app: "ChatGPT"))
+        #expect(await rig.apps.isRunning(pid: 600))
+    }
+
     @Test("退得慢（15 秒）：先提示可以强制退出，它自己退了提示就撤掉")
     func slowQuitClearsNotice() async throws {
         let rig = try Rig()

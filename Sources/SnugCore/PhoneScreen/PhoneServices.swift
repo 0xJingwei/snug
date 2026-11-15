@@ -79,9 +79,11 @@ public protocol AppControl: Sendable {
     func open(_ app: AppInfo) async -> Int32?
     /// 按下菜单里的「新建窗口」（按标题认，见 NewWindowMenu；App 不在前台也行）；没有这一项、或 App 没响应返回 false
     func newWindow(pid: Int32) async -> Bool
-    /// 请 App 退出（同 ⌘Q）。有未存储的内容时 App 会先问：对话框挂在文档窗口上，或单独弹一个
-    func quit(pid: Int32) async
-    func forceQuit(pid: Int32) async
+    /// 请 App 退出（同 ⌘Q）。有未存储的内容时 App 会先问：对话框挂在文档窗口上，或单独弹一个。
+    /// 交回请求有没有送到；App 已经没了也算送到（接着一看就知道它退了）
+    func quit(pid: Int32) async -> Bool
+    /// 强制退出，未存储的内容会丢。交回同 quit
+    func forceQuit(pid: Int32) async -> Bool
     func isRunning(pid: Int32) async -> Bool
 }
 

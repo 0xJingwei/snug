@@ -46,7 +46,7 @@ public final class PhoneDesk {
     public enum Notice: Equatable, Sendable {
         /// 要放的窗口已经关了
         case windowGone(app: String)
-        /// 窗口还在，但读不到、挪不动、关不掉（App 没响应，或没有辅助功能权限）
+        /// 窗口还在，但读不到、挪不动、关不掉（App 没响应，或没有辅助功能权限）；或者请它退出、强制退出的请求没送到
         case windowUnresponsive(app: String)
         /// 还原记录写不进去，不敢动窗口
         case recordUnwritable
@@ -218,7 +218,11 @@ public final class PhoneDesk {
                 await self.matchWidth()
             }
             Log.info("请 \(app.app.name) 退出")
-            await self.apps.quit(pid: app.pid)
+            guard await self.apps.quit(pid: app.pid) else {
+                self.state.quitting.remove(app.pid)
+                self.state.notice = .windowUnresponsive(app: app.app.name)
+                return
+            }
             self.watchQuit(app)
         }
     }
@@ -228,7 +232,9 @@ public final class PhoneDesk {
         state.notice = nil
         unwatch(.quit(pid))
         Log.warn("强制退出 \(app)（pid \(pid)）")
-        lane.run { await self.apps.forceQuit(pid: pid) }
+        lane.run {
+            if await !self.apps.forceQuit(pid: pid) { self.state.notice = .windowUnresponsive(app: app) }
+        }
     }
 
     /// 关掉一个窗口（同点它的红色关闭按钮）。放在手机屏上的先还原位置和字号（App 会记住关掉的窗口在哪、多大，
