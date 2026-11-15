@@ -107,7 +107,7 @@ UU远程 手机端沿用触控板的手势逻辑；Snug 在手机屏上按手机
 **更新**：Snug 每次启动时检查新版本，有更新时列出各版本的更新内容，确认后一键完成。只下载有变化的部分，设置与授权保留。也可在设置的「关于」页中手动检查，或切换更新源（腾讯云、GitHub）。应用内更新自 2.1.0 起提供，更早的版本请手动下载替换。
 
 <div align="center">
-<img src="https://dl.zephyrxiang.com/snug/media/welcome.57ad51da.png" width="45%" alt="欢迎页"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.482119c9.png" width="45%" alt="设置">
+<img src="https://dl.zephyrxiang.com/snug/media/welcome.529d7d28.png" width="45%" alt="欢迎页"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.b7bbc139.png" width="45%" alt="设置">
 <p><sub>欢迎页 · 设置</sub></p>
 </div>
 
@@ -136,8 +136,8 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 
    <img src="https://dl.zephyrxiang.com/snug/media/uu-screen-picker.212fdbe9.png" width="50%" alt="UU远程 的屏幕列表：显示屏 3（Snug 手机屏）">
 
-2. **选择窗口**：轻点列表中的窗口，窗口即铺满整屏
-3. **切换窗口**：轻点底部指示条返回列表；另选窗口时，原窗口自动归位
+2. **选择 App 或窗口**：在 App 资源库中轻点 App 或窗口，即铺满整屏；未运行的 App 直接打开
+3. **切换窗口**：轻点底部指示条返回 App 资源库；另选窗口时，原窗口自动归位
 4. **结束远程**：窗口回到原位、字号复原，手机屏随之移除
 
 ## 🔒 隔离与还原

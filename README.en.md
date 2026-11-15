@@ -49,7 +49,7 @@ UU Remote scales your entire desktop down to fit the phone. Snug adds a dedicate
 | **Display** | The whole desktop is scaled down; text and controls shrink several times over | A dedicated portrait screen that each window fills completely |
 | **Text size** | Shrinks along with the desktop | Enlarged automatically in terminals and editors |
 | **One-finger swipe** | Interpreted as a mouse drag | Scrolls the page, with momentum |
-| **Switching windows** | Hunt for them on a shrunken desktop | Pick from a window list with a single tap |
+| **Switching windows** | Hunt for them on a shrunken desktop | Pick from the App Library with a single tap |
 
 - When the session ends, windows return to their original positions and text sizes are restored
 - When you are not on the phone screen, UU Remote behaves exactly as it always has
@@ -58,9 +58,10 @@ UU Remote scales your entire desktop down to fit the phone. Snug adds a dedicate
 
 | iPhone | Snug phone screen |
 | :--- | :--- |
-| App Switcher | Window list, gathering every window on your Mac |
-| Opening an app | Selecting a window gives it the entire screen |
-| Home indicator | Bottom indicator bar, returning to the window list |
+| App Library | App Library (「App 资源库」): running apps with their windows and every app on your Mac, with search |
+| Opening an app | Opening an app or selecting a window gives it the entire screen; new windows open at phone width |
+| Quitting an app | Quit an app, or close one of its windows, from the App Library; if there are unsaved changes, the save prompt appears on the phone screen |
+| Home indicator | Bottom indicator bar, returning to the App Library |
 | "‹ Back" in the top-left corner | "‹ App name" in the top-left corner, returning to the current window |
 | Dynamic Type | Text scales up for the screen, remembered per app |
 
@@ -103,10 +104,10 @@ UU Remote's mobile client carries over trackpad gesture conventions. On the phon
 
 Snug then stays in the menu bar; no further setup is needed. Open Snug again at any time to bring up Settings.
 
-**Updates**: Snug checks for a new version each time it starts. When one is available, it lists what changed in every newer version and installs with one click, downloading only the parts that changed and keeping your settings and permissions. You can also check manually in About Snug (「关于 Snug」), or switch the update source between Tencent Cloud (「腾讯云」) and GitHub. In-app updates are available from 2.1.0; replace earlier versions manually.
+**Updates**: Snug checks for a new version each time it starts. When one is available, it lists what changed in every newer version and installs with one click, downloading only the parts that changed and keeping your settings and permissions. You can also check manually on the About tab of Settings (「关于」), or switch the update source between Tencent Cloud (「腾讯云」) and GitHub. In-app updates are available from 2.1.0; replace earlier versions manually.
 
 <div align="center">
-<img src="https://dl.zephyrxiang.com/snug/media/welcome.57ad51da.png" width="45%" alt="Welcome window"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.482119c9.png" width="45%" alt="Settings">
+<img src="https://dl.zephyrxiang.com/snug/media/welcome.529d7d28.png" width="45%" alt="Welcome window"> <img src="https://dl.zephyrxiang.com/snug/media/settings-ready.b7bbc139.png" width="45%" alt="Settings">
 <p><sub>Welcome window · Settings</sub></p>
 </div>
 
@@ -135,8 +136,8 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 
    <img src="https://dl.zephyrxiang.com/snug/media/uu-screen-picker.212fdbe9.png" width="50%" alt="UU Remote's screen list, showing display 3: Snug Phone Screen">
 
-2. **Pick a window**: tap any window in the list and it fills the screen
-3. **Switch windows**: tap the bottom indicator bar to return to the list; choosing another window returns the previous one to its place
+2. **Pick an app or window**: tap an app or window in the App Library and it fills the screen; apps that aren't running are launched
+3. **Switch windows**: tap the bottom indicator bar to return to the App Library; choosing another window returns the previous one to its place
 4. **End the session**: windows return to their original positions, text sizes are restored, and the phone screen is removed
 
 ## 🔒 Isolation and Restoration
