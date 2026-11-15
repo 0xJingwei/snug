@@ -8,7 +8,7 @@
 - [手机屏实测坑](project-phone-screen.md) — 多数已在代码注释和 docs；这里留 UU 事件形态、ColorSync 排障、真机自测怎么做、换档实测、App 资源库边界
 - [发版](project-release.md) — 只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123
 - [国内源](project-domestic-mirror.md) — dl.zephyrxiang.com/snug/ 放安装包与 README 媒体；README 图片经 GitHub 代理、动图 ≤5 MB；证书 2027-01-12 到期
-- [演示录制（待做）](project-demo-recording.md) — 手机上操作、Mac 屏幕同时变化的视频：OBS 采三块屏（含 Snug 手机屏），不用第二台设备；还没开干
+- [演示录制（进行中）](project-demo-recording.md) — 三块屏同录的真实演示；素材、清单、脚本全在 footage/（绝不进 git），剪辑交给 kineto 会话
 - [平板横屏（待做）](project-tablet-landscape.md) — issue #7 引出：给平板单独加一块固定横屏；等主人的 iPad 寄到能实测再做
 - [产品思维](feedback-product-thinking.md) — 用户无感、可选不强制、隔离干净；验证用的步骤不进产品
 - [界面规范](feedback-ui-style.md) — 图标只用 SF Symbols；文字短词、书面、克制；每个状态讲清楚

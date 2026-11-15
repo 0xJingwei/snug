@@ -1,11 +1,11 @@
 ---
 name: project-demo-recording
-description: 待做：录「手机上操作的同时，Mac 屏幕跟着变」的演示视频。方案已定：OBS 在这台 Mac 上采三块屏（内建、外接、Snug 手机屏），不用第二台设备；还没开干
+description: 进行中：三块屏同录的真实演示视频，给小红书追更的用户看；素材与说明全在 gitignore 掉的 footage/，剪辑交给 kineto 会话
 metadata:
   node_type: memory
   type: project
   originSessionId: f97709de-705a-489b-bb7a-7353b1fba51c
-  modified: 2026-11-15T08:45:11.765Z
+  modified: 2026-11-15T14:53:57.546Z
 ---
 
 2026-11-15 主人提：一个视频里同时出现 Mac、外接显示器和 iPhone，手机上操作的同时让人看到屏幕怎么变化（原话「三块在一个视频中演示效果最炸裂」）。还有别的小需求要先做，这件暂缓，回来做时从这里接着。
@@ -26,4 +26,8 @@ metadata:
 
 **开干时**：先问一句用途。[[feedback-promo-video]] 里定过 kineto 宣传片以代码画为主、实机演示被否过，这次是实录，多半用在 README 演示或当宣传片的配角素材。然后装 OBS（`brew install --cask obs`，普通应用，第一次要在系统设置里给屏幕录制权限，装前等主人点头），配三联画场景，先录 30 秒验两件事：边给 UU 推流边录 4K + 3K 会不会让手机卡；光标在采集画面里清不清楚。
 
-**How to apply:** 主人说回来做演示录制时读这里，照上面的方案直接推进，不再从头讨论；方案有变就改这份。
+**11-15 试录与分工**：主人说明了用途：小红书上很多人追更，录一段三块屏的真实使用演示，比宣传片真实。OBS 33.0.1 已装，三联画试录成功（4K、60 帧、硬件 HEVC；手机屏 1:1，Mac 屏各缩到 1260 宽）。主人定的分工：
+- **剪辑交给 kineto 那边的会话**，为的是项目隔离。这边负责录制、维护素材清单、给每条录像对好 Snug 日志的时间、写内容生产说明
+- **所有东西都放在仓库里的 `footage/`**，`.gitignore` 里写了 `/footage/`，**绝不能提交、推送**（主人原话「千万不能传到 Git 上」）。文档、原始录像、抽帧分析、脚本、内容生产说明都往里写。入口是 `footage/README.md`，清单在 `catalog.md`，待定事项在 `production.md`，OBS 的坑也记在 README 里
+
+**How to apply:** 主人说回来做演示录制时读这里和 `footage/README.md`、`production.md`，照着推进，不再从头讨论。每录一条都记进 `catalog.md`，进展写进 footage，不写进 git 跟踪的文件；方案有变就改这份。
