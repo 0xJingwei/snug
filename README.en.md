@@ -16,7 +16,7 @@ Built for UU Remote<br>Native portrait display · Native gestures · App Library
 
 <br>
 
-<img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.989b66ef.png" width="30%" alt="App Library: running apps with their windows"> <img src="https://dl.zephyrxiang.com/snug/media/phone-demo.2cee4e81.webp" width="30%" alt="Live demo: opening a window, typing commands on the pop-up keyboard, resuming a session, one-finger scrolling, returning to the list"> <img src="https://dl.zephyrxiang.com/snug/media/phone-context-menu.997dd70f.png" width="30%" alt="Long-press context menu">
+<img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.865fc506.png" width="30%" alt="App Library: running apps with their windows"> <img src="https://dl.zephyrxiang.com/snug/media/phone-demo.2cee4e81.webp" width="30%" alt="Live demo: opening a window, typing commands on the pop-up keyboard, resuming a session, one-finger scrolling, returning to the list"> <img src="https://dl.zephyrxiang.com/snug/media/phone-context-menu.997dd70f.png" width="30%" alt="Long-press context menu">
 <p><sub>App Library · Live demo · Long-press context menu</sub><br><sub>▶ <a href="https://dl.zephyrxiang.com/snug/media/phone-demo.a97e46d1.mp4">Watch the HD demo video</a></sub></p>
 
 </div>
@@ -79,7 +79,7 @@ The home page of the phone screen (「App 资源库」), for managing your Mac's
 - **All** (「全部」): a grid of every app on your Mac, sorted by name; tap an app that isn't running to launch it
 - **Search**: matches app names and window titles, in Chinese, English, full pinyin, or pinyin initials, so "bwl" finds Notes (「备忘录」)
 
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.989b66ef.png" width="30%" alt="Running: the app whose window is on the phone screen is listed first"> <img src="https://dl.zephyrxiang.com/snug/media/phone-all-apps.a0c37ccd.png" width="30%" alt="All: a grid of every app on the Mac"> <img src="https://dl.zephyrxiang.com/snug/media/phone-search.78e93e6c.png" width="30%" alt="Search: typing bwl finds Notes"><br><sub>Running · All · Searching by pinyin initials</sub></p>
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.865fc506.png" width="30%" alt="Running: the app whose window is on the phone screen is listed first"> <img src="https://dl.zephyrxiang.com/snug/media/phone-all-apps.7d4ada60.png" width="30%" alt="All: a grid of every app on the Mac"> <img src="https://dl.zephyrxiang.com/snug/media/phone-search.d365e194.png" width="30%" alt="Search: typing bwl finds Notes"><br><sub>Running · All · Searching by pinyin initials</sub></p>
 
 | Action | How |
 | :--- | :--- |
@@ -99,7 +99,7 @@ Some apps enforce a minimum width and can't shrink to the phone screen. Snug fir
 - The picture scales proportionally without distortion, and taps land exactly where you expect
 - Text in such windows is slightly smaller; pinch to zoom on the phone
 
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.1ef71d13.png" width="36%" alt="System Settings, which enforces a minimum width, filling the phone screen completely"><br><sub>System Settings enforces a minimum width, yet still fills the phone screen completely</sub></p>
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-fit-settings.4e526ad6.png" width="36%" alt="System Settings, which enforces a minimum width, filling the phone screen completely"><br><sub>System Settings enforces a minimum width, yet still fills the phone screen completely</sub></p>
 
 ### Every Phone, Edge to Edge
 
@@ -109,7 +109,7 @@ UU Remote scales the picture proportionally to fit the phone, leaving black bars
 - **Custom**: if your model isn't listed, enter its screen resolution or aspect ratio
 - **Choose in either place**: in Snug's settings or in the top-right corner of the App Library on the phone screen; the two stay in sync
 
-<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-models.561fed4f.png" width="36%" alt="Phone model page: the current model, a custom resolution, and models listed by brand"><br><sub>Phone model: models listed by brand, or enter a custom resolution</sub></p>
+<p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-models.3137ee0e.png" width="36%" alt="Phone model page: the current model, a custom resolution, and models listed by brand"><br><sub>Phone model: models listed by brand, or enter a custom resolution</sub></p>
 
 ## 🆚 Compared with Alternatives
 
