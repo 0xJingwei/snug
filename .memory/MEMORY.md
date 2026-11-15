@@ -4,8 +4,8 @@
 - [通用 skill 路由](skill-routing-general.md) — 密钥、多仓、云运维、Multica、编排、长任务、去 AI 腔用哪个 skill
 - [iOS skill 路由](skill-routing-ios.md) — SwiftUI 视图、iOS 验证闭环用哪个 skill
 - [项目定位](project-positioning.md) — 承接的自有项目，保留原作者版权与致谢；2.0.0 已发布，本地数据格式变更要带迁移
-- [产品](project-product.md) — 目标与已拍板的形态：可选竖屏手机屏、默认同原版 UU、有手机或平板连着才加屏、屏幕适配按窗口换档；只做手机远程，不做电脑远程去黑边
-- [手机屏实测坑](project-phone-screen.md) — 多数已在代码注释和 docs；这里留 UU 事件形态、ColorSync 排障、自测别抢焦点、换档实测
+- [产品](project-product.md) — 目标与已拍板的形态：可选竖屏手机屏、默认同原版 UU、有手机或平板连着才加屏、屏幕适配按窗口换档、首页是 App 资源库；只做手机远程，不做电脑远程去黑边
+- [手机屏实测坑](project-phone-screen.md) — 多数已在代码注释和 docs；这里留 UU 事件形态、ColorSync 排障、真机自测怎么做、换档实测、App 资源库边界
 - [发版](project-release.md) — 只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123
 - [国内源](project-domestic-mirror.md) — dl.zephyrxiang.com/snug/ 放安装包与 README 媒体；README 图片经 GitHub 代理、动图 ≤5 MB；证书 2027-01-12 到期
 - [产品思维](feedback-product-thinking.md) — 用户无感、可选不强制、隔离干净；验证用的步骤不进产品
@@ -16,4 +16,3 @@
 - [Workflow 使用](feedback-workflow-scale.md) — 起之前先跟主人确认；审查只审一轮，维度含正确性、架构、工程审美、去冗余；5 个左右、一个核实者
 - [宣传片](feedback-promo-video.md) — 在 kineto 做：发布会式快节奏、代码画为主、场景可演绎细节必须真；给 kineto 只给方向
 - [工程审美](feedback-engineering-taste.md) — 干净优雅、架构好维护好扩展；不过度防御几乎不可能的事
-- [App 资源库（进行中）](project-app-library.md) — 手机屏上直接打开、退出、搜索 App，Mac 端界面一起重做；设计记录在 feature/app-library 分支 docs/design/app-library.md
