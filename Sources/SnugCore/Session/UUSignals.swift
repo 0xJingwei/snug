@@ -26,7 +26,9 @@ public struct UUSignals: Equatable, Sendable, CustomStringConvertible {
 }
 
 public enum ConnectionEvent: Equatable, Sendable {
-    case connected(controller: String?)
-    case controllerChanged(String)
+    /// 连入时认出的控制端（可能还没读到，为空）
+    case connected(controllers: [String])
+    /// 同时连着的控制端变了：有人加入、有人离开
+    case controllersChanged([String])
     case disconnected
 }

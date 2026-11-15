@@ -96,11 +96,11 @@ final class AppController {
             desk.verifyPlacement()
         }
         state.update(\.connection, session.isConnected ? .connected : (session.inEpisode ? .reconnecting : .idle))
-        state.update(\.controller, session.controller)
+        state.update(\.controllers, session.controllers)
         state.update(\.streamedDisplay, sample.streamingDisplay)
     }
 
-    /// 要不要手机屏：开着总开关、有权限，这次远程的控制端不是电脑（见 RemoteSession.wantsPhoneScreen）
+    /// 要不要手机屏：开着总开关、有权限，这次远程的控制端里有不是电脑的（见 RemoteSession.wantsPhoneScreen）
     private var wantsPhoneScreen: Bool {
         guard store.config.phoneScreen, state.accessibilityTrusted else { return false }
         return previewPhone || session.wantsPhoneScreen(now: now)
@@ -137,11 +137,15 @@ final class AppController {
 
     static func describe(_ t: SessionTransition) -> String {
         switch t {
-        case .began(let c): "开始（控制端 \(c ?? "读不到名字")）"
-        case .resumed(let c): "重连上，仍是同一次远程（控制端 \(c ?? "读不到名字")）"
-        case .controllerChanged(let c): "控制端变为 \(c)"
+        case .began(let c): "开始（控制端 \(names(c))）"
+        case .resumed(let c): "重连上，仍是同一次远程（控制端 \(names(c))）"
+        case .controllersChanged(let c): "控制端变为 \(names(c))"
         case .interrupted: "断开，等 \(Int(SessionEpisode.reconnectWindow))s 看会不会重连"
         case .ended: "结束"
         }
+    }
+
+    private static func names(_ controllers: [String]) -> String {
+        controllers.isEmpty ? "读不到名字" : controllers.joined(separator: "、")
     }
 }

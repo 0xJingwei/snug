@@ -62,7 +62,7 @@ enum RenderSamples {
 
     private static func connected(_ s: AppState) {
         s.connection = .connected
-        s.controller = "iPhone 17 Pro Max"
+        s.controllers = ["iPhone 17 Pro Max"]
         s.phone.screen = .ready(14)
     }
 

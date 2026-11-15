@@ -42,12 +42,12 @@ struct RemoteSessionTests {
     @Test("连入 → began；断开 → interrupted；窗口内重连 → resumed；窗口过后 → ended")
     func transitions() {
         var s = RemoteSession()
-        #expect(s.update(present, now: at(0)) == [.began(controller: "iPhone")])
+        #expect(s.update(present, now: at(0)) == [.began(controllers: ["iPhone"])])
         #expect(s.update(absent, now: at(1.0)) == [])
         #expect(s.update(absent, now: at(2.0)) == [.interrupted])
         #expect(s.isConnected == false)
         #expect(s.inEpisode)
-        #expect(s.update(present, now: at(3.0)) == [.resumed(controller: "iPhone")])
+        #expect(s.update(present, now: at(3.0)) == [.resumed(controllers: ["iPhone"])])
         #expect(s.update(absent, now: at(5.0)) == [.interrupted])
         #expect(s.update(absent, now: at(20.0)) == [])
         #expect(s.update(absent, now: at(20.1)) == [.ended])
@@ -59,15 +59,15 @@ struct RemoteSessionTests {
         var s = RemoteSession()
         _ = s.update(present, now: at(0))
         _ = s.update(absent, now: at(2.0))
-        #expect(s.update(present, now: at(30)) == [.ended, .began(controller: "iPhone")])
+        #expect(s.update(present, now: at(30)) == [.ended, .began(controllers: ["iPhone"])])
     }
 
-    @Test("控制端换名透传为 controllerChanged")
-    func controllerChanged() {
+    @Test("控制端变化透传为 controllersChanged")
+    func controllersChanged() {
         var s = RemoteSession()
         _ = s.update(UUSignals(overlayVisible: true, controllers: .unreadable, captureActive: nil), now: at(0))
-        #expect(s.update(present, now: at(0.5)) == [.controllerChanged("iPhone")])
-        #expect(s.controller == "iPhone")
+        #expect(s.update(present, now: at(0.5)) == [.controllersChanged(["iPhone"])])
+        #expect(s.controllers == ["iPhone"])
     }
 
     @Test("回归 #1：没认出控制端、推流一直在，远程不断开；停流后照常 interrupted、ended")
@@ -75,7 +75,7 @@ struct RemoteSessionTests {
         var s = RemoteSession()
         let streaming = UUSignals(overlayVisible: false, controllers: .unrecognized, captureActive: true)
         let stopped = UUSignals(overlayVisible: false, controllers: .unrecognized, captureActive: false)
-        #expect(s.update(streaming, now: at(0)) == [.began(controller: nil)])
+        #expect(s.update(streaming, now: at(0)) == [.began(controllers: [])])
         for seconds in [0.5, 59.5, 60, 60.5, 75.6, 300] {
             #expect(s.update(streaming, now: at(seconds)) == [])
         }
@@ -107,12 +107,12 @@ struct PhoneDemandTests {
         #expect(!s.wantsPhoneScreen(now: at(0)))
         _ = s.update(absent, now: at(1))
         #expect(s.update(absent, now: at(2)) == [.interrupted])
-        #expect(s.controller == nil)
+        #expect(s.controllers.isEmpty)
         #expect(s.inEpisode)
         #expect(!s.wantsPhoneScreen(now: at(2)))
         #expect(!s.wantsPhoneScreen(now: at(16)))
         #expect(s.update(absent, now: at(17.1)) == [.ended])
-        #expect(s.episodeController == nil)
+        #expect(s.episodeControllers.isEmpty)
     }
 
     @Test("手机控制端：重连窗口里照样要，手机屏和上面的窗口留着")
@@ -129,10 +129,10 @@ struct PhoneDemandTests {
     @Test("刚连上名字还没读到：先等 2 秒；名字下一拍读到是电脑，就一直不要")
     func waitsForNameThenComputer() {
         var s = RemoteSession()
-        #expect(s.update(overlayOnly, now: at(0)) == [.began(controller: nil)])
+        #expect(s.update(overlayOnly, now: at(0)) == [.began(controllers: [])])
         #expect(!s.wantsPhoneScreen(now: at(0)))
         #expect(s.update(UUSignals(overlayVisible: true, controllers: .shown(["MacBook Air"]), captureActive: nil), now: at(0.5))
-                == [.controllerChanged("MacBook Air")])
+                == [.controllersChanged(["MacBook Air"])])
         #expect(!s.wantsPhoneScreen(now: at(0.5)))
         #expect(!s.wantsPhoneScreen(now: at(5)))
     }
@@ -143,6 +143,21 @@ struct PhoneDemandTests {
         _ = s.update(UUSignals(overlayVisible: true, controllers: table, captureActive: nil), now: at(0))
         #expect(!s.wantsPhoneScreen(now: at(1.9)))
         #expect(s.wantsPhoneScreen(now: at(2)))
+    }
+
+    @Test("回归 #3：电脑和手机同时连着也要（只看第一个控制端会把手机屏撤掉）；手机走了、只剩电脑就不要")
+    func phoneAlongsideComputer() {
+        var s = RemoteSession()
+        _ = s.update(table("markzhang的MacBook Pro"), now: at(0))
+        #expect(!s.wantsPhoneScreen(now: at(0)))
+        _ = s.update(table("iPhone 18 Pro"), now: at(95))
+        #expect(s.wantsPhoneScreen(now: at(95)))
+        _ = s.update(table("markzhang的MacBook Pro", "iPhone 18 Pro"), now: at(96))
+        #expect(s.wantsPhoneScreen(now: at(96)))
+        _ = s.update(table("iPhone 18 Pro", "markzhang的MacBook Pro"), now: at(97))
+        #expect(s.wantsPhoneScreen(now: at(97)))
+        _ = s.update(table("markzhang的MacBook Pro"), now: at(120))
+        #expect(!s.wantsPhoneScreen(now: at(120)))
     }
 
     @Test("不在远程里：不要")

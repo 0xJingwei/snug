@@ -1,4 +1,5 @@
 // 控制端是什么设备：只看 UU 表格里的名字。手机、平板才加手机屏；电脑控制端不加。
+// 几台同时连着时，有一台要就加：电脑那边照样看原来的屏，只是 UU 的屏幕列表里多一项（issue #3）。
 // 表格没给出名字（读不到，或没认出控制端行）、名字认不出是什么设备时，都按手机处理：手机屏只是 UU 里多一个可选项，
 // 用不用由用户决定，宁可多给，不要让手机用户等不到
 import Foundation
@@ -36,14 +37,20 @@ public enum ControllerKind: Equatable, Sendable {
     }
 
     public var wantsPhoneScreen: Bool { self != .computer }
+
+    /// 同时连着的几台控制端要不要手机屏：有一台不是电脑就要，全是电脑（或一台都没有）不要
+    public static func wantsPhoneScreen(_ names: [String]) -> Bool {
+        names.contains { ControllerKind(name: $0).wantsPhoneScreen }
+    }
 }
 
 extension RemoteSession {
-    /// 这次远程要不要手机屏：在一次远程里（断开重连的窗口内也算），控制端不是电脑。
-    /// 按整次远程记住的名字判断：断开那一拍名字被清空，不能因此把电脑控制端当成手机
+    /// 这次远程要不要手机屏：在一次远程里（断开重连的窗口内也算），控制端里有不是电脑的。
+    /// 按整次远程记住的控制端判断：断开那一拍会被清空，不能因此把电脑控制端当成手机。
+    /// 一直没读到名字，等过 nameGrace 按手机处理
     public func wantsPhoneScreen(now: Date) -> Bool {
         guard let began = episodeBeganAt else { return false }
-        if episodeController == nil, now.timeIntervalSince(began) < ControllerKind.nameGrace { return false }
-        return ControllerKind(name: episodeController).wantsPhoneScreen
+        guard !episodeControllers.isEmpty else { return now.timeIntervalSince(began) >= ControllerKind.nameGrace }
+        return ControllerKind.wantsPhoneScreen(episodeControllers)
     }
 }

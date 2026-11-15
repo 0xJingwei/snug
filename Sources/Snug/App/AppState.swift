@@ -15,7 +15,8 @@ enum ConnectionPhase: Equatable {
 final class AppState {
     var config = AppConfig()
     var connection = ConnectionPhase.idle
-    var controller: String?
+    /// 此刻同时连着的控制端
+    var controllers: [String] = []
     /// UU 此刻在推的屏
     var streamedDisplay: DisplayID?
     var phone = PhoneDesk.State()

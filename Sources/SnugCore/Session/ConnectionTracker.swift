@@ -5,6 +5,8 @@
 //   1. 连续不在场超过 disconnectDebounce（UU 切屏时覆盖窗口会短暂重建）
 //   2. 过了自扰静默期：本工具自己加屏、撤屏后 quietWindow 内不判。屏幕组合一变，UU 会停流重开、重建窗口，
 //      2026-11-12 19:01 就因为改屏幕扰乱了 UU 的信号被误判为断开，屏幕改回去信号又回来，如此反复
+// - 控制端记一组：UU 允许几台设备同时连着（issue #3：电脑和手机同时连着，只看第一个就把手机当成了电脑）。
+//   表格里的顺序是谁先连上，不代表谁在用，所以只比较有哪些人
 // - 推流还在就算远程还在，不设「推流太久就判断开」的上限。上限得靠控制端表格证明「没人」，
 //   可 UU 没被控时根本不显示这张表，没认出控制端只说明没看到：先是 UU 主窗口关着、后是停在首页（issue #1），
 //   正常远程都被上限误判断开过，而它一次也没在真正该断的时候起过作用。
@@ -17,7 +19,8 @@ public struct ConnectionTracker: Sendable {
     public static let quietWindow: TimeInterval = 5
 
     public private(set) var isConnected = false
-    public private(set) var controller: String?
+    /// 此刻同时连着的控制端，按表格里的顺序；没认出过为空
+    public private(set) var controllers: [String] = []
 
     private var lastPresentAt: Date?
     private var quietUntil: Date?
@@ -31,29 +34,29 @@ public struct ConnectionTracker: Sendable {
     }
 
     public mutating func update(_ signals: UUSignals, now: Date) -> ConnectionEvent? {
-        let name = signals.controllers.names.first
+        let names = signals.controllers.names
         if signals.isPresent { lastPresentAt = now }
 
         guard isConnected else {
             guard signals.isPresent else { return nil }
             isConnected = true
-            controller = name
+            controllers = names
             log("检测到 UU 连入", signals, now: now)
-            return .connected(controller: controller)
+            return .connected(controllers: controllers)
         }
 
         if signals.isPresent {
-            // 没认出控制端时保留原名：主窗口切走了不代表换了人
-            guard let name, name != controller else { return nil }
-            controller = name
-            log("控制端变为 \(name)", signals, now: now)
-            return .controllerChanged(name)
+            // 没认出控制端时保留原来的：主窗口切走了不代表换了人
+            guard !names.isEmpty, Set(names) != Set(controllers) else { return nil }
+            controllers = names
+            log("控制端变为 \(names.joined(separator: "、"))", signals, now: now)
+            return .controllersChanged(names)
         }
 
         guard let last = lastPresentAt, now.timeIntervalSince(last) > Self.disconnectDebounce, quietPassed(now) else { return nil }
         log("检测到 UU 断开", signals, now: now)
         isConnected = false
-        controller = nil
+        controllers = []
         return .disconnected
     }
 

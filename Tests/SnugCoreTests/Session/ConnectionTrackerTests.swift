@@ -18,18 +18,18 @@ struct ConnectionTrackerTests {
         #expect(ConnectionTracker.quietWindow == 5)
     }
 
-    @Test("首连不做确认延迟：第一次看到在场就连入，名字取认出的第一个控制端")
+    @Test("首连不做确认延迟：第一次看到在场就连入，带上认出的全部控制端")
     func immediateConnect() {
         var t = ConnectionTracker()
         #expect(t.update(none, now: at(0)) == nil)
-        #expect(t.update(table("iPhone", "iPad"), now: at(0.5)) == .connected(controller: "iPhone"))
+        #expect(t.update(table("iPhone", "iPad"), now: at(0.5)) == .connected(controllers: ["iPhone", "iPad"]))
         #expect(t.isConnected)
-        #expect(t.controller == "iPhone")
+        #expect(t.controllers == ["iPhone", "iPad"])
 
         var o = ConnectionTracker()
-        #expect(o.update(overlay, now: at(0)) == .connected(controller: nil))
+        #expect(o.update(overlay, now: at(0)) == .connected(controllers: []))
         var c = ConnectionTracker()
-        #expect(c.update(capture(true), now: at(0)) == .connected(controller: nil))
+        #expect(c.update(capture(true), now: at(0)) == .connected(controllers: []))
     }
 
     @Test("断开防抖：最后一次在场之后超过 1.5s 才判断开")
@@ -41,9 +41,9 @@ struct ConnectionTrackerTests {
         #expect(t.update(none, now: at(1.5)) == nil)
         #expect(t.update(none, now: at(1.6)) == .disconnected)
         #expect(!t.isConnected)
-        #expect(t.controller == nil)
+        #expect(t.controllers.isEmpty)
         // 断开后再出现立刻连入
-        #expect(t.update(overlay, now: at(1.7)) == .connected(controller: nil))
+        #expect(t.update(overlay, now: at(1.7)) == .connected(controllers: []))
     }
 
     @Test("中途短暂缺席（<1.5s）不断开")
@@ -70,7 +70,7 @@ struct ConnectionTrackerTests {
     func quietDoesNotDelayConnect() {
         var t = ConnectionTracker()
         t.noteSelfInducedChange(at: at(0))
-        #expect(t.update(overlay, now: at(0.1)) == .connected(controller: nil))
+        #expect(t.update(overlay, now: at(0.1)) == .connected(controllers: []))
     }
 
     @Test("认出控制端后表格读不到、只剩推流：不断开、名字保留；停流后从最后一次在场起 1.5s 判断开")
@@ -80,7 +80,7 @@ struct ConnectionTrackerTests {
         for s in stride(from: 0.5, through: 10.0, by: 0.5) {
             #expect(t.update(capture(true), now: at(s)) == nil)
         }
-        #expect(t.controller == "iPhone")
+        #expect(t.controllers == ["iPhone"])
         #expect(t.update(capture(false), now: at(10.5)) == nil)
         #expect(t.update(capture(false), now: at(11.5)) == nil)   // 距最后在场 10.0 恰 1.5
         #expect(t.update(capture(false), now: at(11.6)) == .disconnected)
@@ -90,7 +90,7 @@ struct ConnectionTrackerTests {
           arguments: [ControllerTable.unreadable, .unrecognized])
     func captureKeepsConnection(table: ControllerTable) {
         var t = ConnectionTracker()
-        #expect(t.update(capture(true, table), now: at(0)) == .connected(controller: nil))
+        #expect(t.update(capture(true, table), now: at(0)) == .connected(controllers: []))
         for s in [0.5, 59.5, 60.1, 300] {
             #expect(t.update(capture(true, table), now: at(s)) == nil)
         }
@@ -103,24 +103,35 @@ struct ConnectionTrackerTests {
     @Test("认出过控制端、之后没认出（主窗口切走了），推流还在：不断开，名字保留")
     func tableGoesUnrecognizedMidSession() {
         var t = ConnectionTracker()
-        #expect(t.update(capture(true, .shown(["iPhone"])), now: at(0)) == .connected(controller: "iPhone"))
+        #expect(t.update(capture(true, .shown(["iPhone"])), now: at(0)) == .connected(controllers: ["iPhone"]))
         for s in stride(from: 0.5, through: 120.0, by: 0.5) {
             #expect(t.update(capture(true, .unrecognized), now: at(s)) == nil)
         }
         #expect(t.isConnected)
-        #expect(t.controller == "iPhone")
+        #expect(t.controllers == ["iPhone"])
     }
 
-    @Test("控制端名字：先没有后出现、或换人，发 controllerChanged；读不到、没认出时保留原名")
+    @Test("控制端：先没有后出现、或换人，发 controllersChanged；读不到、没认出时保留原来的")
     func controllerChanges() {
         var t = ConnectionTracker()
-        #expect(t.update(overlay, now: at(0)) == .connected(controller: nil))
-        #expect(t.update(UUSignals(overlayVisible: true, controllers: .shown(["iPad"]), captureActive: nil), now: at(0.5)) == .controllerChanged("iPad"))
+        #expect(t.update(overlay, now: at(0)) == .connected(controllers: []))
+        #expect(t.update(UUSignals(overlayVisible: true, controllers: .shown(["iPad"]), captureActive: nil), now: at(0.5)) == .controllersChanged(["iPad"]))
         #expect(t.update(UUSignals(overlayVisible: true, controllers: .shown(["iPad"]), captureActive: nil), now: at(1.0)) == nil)
-        #expect(t.update(UUSignals(overlayVisible: true, controllers: .shown(["iPhone"]), captureActive: nil), now: at(1.5)) == .controllerChanged("iPhone"))
+        #expect(t.update(UUSignals(overlayVisible: true, controllers: .shown(["iPhone"]), captureActive: nil), now: at(1.5)) == .controllersChanged(["iPhone"]))
         #expect(t.update(UUSignals(overlayVisible: true, controllers: .unrecognized, captureActive: nil), now: at(2.0)) == nil)
         #expect(t.update(UUSignals(overlayVisible: true, controllers: .unreadable, captureActive: nil), now: at(2.5)) == nil)
-        #expect(t.controller == "iPhone")
+        #expect(t.controllers == ["iPhone"])
+    }
+
+    @Test("几台同时连着（issue #3）：有人加入、离开都发 controllersChanged；只是表格里换了顺序不算变")
+    func severalControllers() {
+        var t = ConnectionTracker()
+        #expect(t.update(table("MacBook Pro"), now: at(0)) == .connected(controllers: ["MacBook Pro"]))
+        #expect(t.update(table("MacBook Pro", "iPhone"), now: at(0.5)) == .controllersChanged(["MacBook Pro", "iPhone"]))
+        #expect(t.update(table("iPhone", "MacBook Pro"), now: at(1.0)) == nil)
+        #expect(t.controllers == ["MacBook Pro", "iPhone"])
+        #expect(t.update(table("MacBook Pro"), now: at(1.5)) == .controllersChanged(["MacBook Pro"]))
+        #expect(t.controllers == ["MacBook Pro"])
     }
 
     @Test("信号快照写进日志用的描述：区分读不到 / 未识别 / 具体名字")

@@ -4,10 +4,10 @@ import Foundation
 
 public enum SessionTransition: Equatable, Sendable {
     /// 新会话开始
-    case began(controller: String?)
+    case began(controllers: [String])
     /// 重连窗口内再连上，仍是同一会话
-    case resumed(controller: String?)
-    case controllerChanged(String)
+    case resumed(controllers: [String])
+    case controllersChanged([String])
     /// 断开，进入重连窗口
     case interrupted
     /// 重连窗口过了，会话结束
@@ -17,38 +17,38 @@ public enum SessionTransition: Equatable, Sendable {
 public struct RemoteSession: Sendable {
     public private(set) var tracker = ConnectionTracker()
     public private(set) var episode = SessionEpisode()
-    /// 这次远程最后读到的控制端名字。断开那一拍 tracker 会清空名字，这里在重连窗口里照样记着
-    public private(set) var episodeController: String?
+    /// 这次远程最后读到的控制端。断开那一拍 tracker 会清空，这里在重连窗口里照样记着
+    public private(set) var episodeControllers: [String] = []
     /// 这次远程从什么时候开始；不在远程里是 nil
     public private(set) var episodeBeganAt: Date?
 
     public init() {}
 
     public var isConnected: Bool { tracker.isConnected }
-    /// 此刻连着的控制端（断开时是 nil）
-    public var controller: String? { tracker.controller }
+    /// 此刻连着的控制端（断开时为空）
+    public var controllers: [String] { tracker.controllers }
     public var inEpisode: Bool { episode.isActive }
 
     public mutating func update(_ signals: UUSignals, now: Date) -> [SessionTransition] {
         var out: [SessionTransition] = []
         if episode.advance(to: now) == .ended {
             out.append(.ended)
-            episodeController = nil
+            episodeControllers = []
             episodeBeganAt = nil
         }
         switch tracker.update(signals, now: now) {
-        case .connected(let name)?:
+        case .connected(let names)?:
             if episode.connected(at: now) == .began {
                 episodeBeganAt = now
-                episodeController = name
-                out.append(.began(controller: name))
+                episodeControllers = names
+                out.append(.began(controllers: names))
             } else {
-                if let name { episodeController = name }
-                out.append(.resumed(controller: name))
+                if !names.isEmpty { episodeControllers = names }
+                out.append(.resumed(controllers: names))
             }
-        case .controllerChanged(let name)?:
-            episodeController = name
-            out.append(.controllerChanged(name))
+        case .controllersChanged(let names)?:
+            episodeControllers = names
+            out.append(.controllersChanged(names))
         case .disconnected?:
             if episode.disconnected(at: now) == .interrupted { out.append(.interrupted) }
         case nil:

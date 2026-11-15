@@ -23,7 +23,7 @@ struct StatusText: Equatable {
         switch s.connection {
         case .idle: return "等待连接"
         case .reconnecting: return "连接中断"
-        case .connected: return s.controller.map { "\($0) · 远程中" } ?? "远程中"
+        case .connected: return s.controllers.isEmpty ? "远程中" : "\(s.controllers.joined(separator: "、")) · 远程中"
         }
     }
 
@@ -41,7 +41,7 @@ struct StatusText: Equatable {
             guard s.phoneInUse else { return "手机屏已就绪" }
             return s.phone.placed.map { "手机屏 · \($0.window.app)" } ?? "手机屏使用中"
         case .off:
-            return ControllerKind(name: s.controller) == .computer ? "电脑控制端，不提供手机屏" : nil
+            return s.controllers.isEmpty || ControllerKind.wantsPhoneScreen(s.controllers) ? nil : "电脑控制端，不提供手机屏"
         }
     }
 }

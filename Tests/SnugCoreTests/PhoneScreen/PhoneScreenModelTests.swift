@@ -45,6 +45,14 @@ struct ControllerKindTests {
         #expect(ControllerKind(name: nil).wantsPhoneScreen)
         #expect(ControllerKind(name: "Xiaomi 15").wantsPhoneScreen)
     }
+
+    @Test("几台同时连着：有一台不是电脑就加；全是电脑、一台都没有不加")
+    func several() {
+        #expect(ControllerKind.wantsPhoneScreen(["markzhang的MacBook Pro", "iPhone 18 Pro"]))
+        #expect(ControllerKind.wantsPhoneScreen(["DESKTOP-7Q2K1LM", "Xiaomi 15"]))
+        #expect(!ControllerKind.wantsPhoneScreen(["MacBook Air", "DESKTOP-7Q2K1LM"]))
+        #expect(!ControllerKind.wantsPhoneScreen([]))
+    }
 }
 
 @Suite("窗口列表")
