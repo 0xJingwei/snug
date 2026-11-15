@@ -4,16 +4,32 @@ import Testing
 
 @Suite("配置 AppConfig")
 struct ConfigModelTests {
-    @Test("默认值：手机屏和手势都开着，字号默认放大 2 级，还没看过欢迎页，从腾讯云更新")
+    @Test("默认值：手机屏、桌面屏和手势都开着，字号默认放大 2 级，还没看过欢迎页，从腾讯云更新")
     func defaults() {
         let c = AppConfig()
         #expect(c.phoneScreen)
+        #expect(c.desktopScreen)
         #expect(c.gestures)
         #expect(c.zoomSteps == 2)
         #expect(!c.welcomed)
         #expect(c.updateSource == .tencent)
         #expect(c.lastVersion == nil)
         #expect(c.phone == .standard)
+        #expect(c.desktop == .standard)
+    }
+
+    @Test("桌面尺寸：老配置里没有就用默认（MacBook Pro 14\"）；手改坏了（竖屏、太小、超大）用默认，不连累别的设置")
+    func desktop() throws {
+        let decode = { (json: String) in try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8)) }
+        #expect(try decode(#"{"zoomSteps":3}"#).desktop == .standard)
+        let custom = try decode(#"{"desktop":{"screen":{"width":1920,"height":1080}}}"#)
+        #expect(custom.desktop == DesktopChoice(preset: nil, screen: DesktopScreen(width: 1920, height: 1080)))
+        for bad in [#"{"width":900,"height":1440}"#, #"{"width":640,"height":480}"#, #"{"width":9000,"height":5000}"#] {
+            let c = try decode(#"{"zoomSteps":3,"desktopScreen":false,"desktop":{"screen":\#(bad)}}"#)
+            #expect(c.desktop == .standard)
+            #expect(!c.desktopScreen)
+            #expect(c.zoomSteps == 3)
+        }
     }
 
     @Test("手机型号：老配置里没有就用默认（iPhone 17 Pro Max）；手改坏了（横着写、不是正数、缺字段）用默认，不连累别的设置")
@@ -42,6 +58,7 @@ struct ConfigModelTests {
         let c = try JSONDecoder().decode(AppConfig.self, from: Data(json.utf8))
         #expect(c.gestures == false)
         #expect(c.phoneScreen)
+        #expect(c.desktopScreen)
         #expect(c.zoomSteps == 2)
     }
 
@@ -57,11 +74,13 @@ struct ConfigModelTests {
     func roundTrip() throws {
         var c = AppConfig()
         c.phoneScreen = false
+        c.desktopScreen = false
         c.zoomSteps = 3
         c.welcomed = true
         c.updateSource = .github
         c.lastVersion = Version(major: 2, minor: 1, patch: 0)
         c.phone = PhoneChoice(model: "华为 Mate 70 Pro", screen: PhoneScreen(width: 1260, height: 2832))
+        c.desktop = DesktopChoice(preset: nil, screen: DesktopScreen(width: 1920, height: 1080))
         #expect(try JSONDecoder().decode(AppConfig.self, from: JSONEncoder().encode(c)) == c)
     }
 }

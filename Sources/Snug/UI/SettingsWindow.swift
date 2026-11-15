@@ -40,6 +40,25 @@ struct SettingsView: View {
                 .disabled(!state.config.phoneScreen)
             }
             Section {
+                Toggle(isOn: binding(state.config.desktopScreen, intents.setDesktopScreen)) {
+                    SettingLabel("桌面屏", detail: "电脑远控时增加横屏，切屏即聚拢多屏窗口", symbol: "display.2", tint: .teal)
+                }
+                LabeledContent {
+                    DesktopMenu(current: state.config.desktop, choose: intents.setDesktop)
+                } label: {
+                    SettingLabel("桌面尺寸", detail: "按控制端电脑屏幕选择", symbol: "laptopcomputer", tint: .cyan)
+                }
+                .disabled(!state.config.desktopScreen)
+                if state.desktop.gatheredCount > 0 {
+                    LabeledContent {
+                        Button("还原窗口") { intents.restoreDesktopWindows() }
+                    } label: {
+                        SettingLabel("已聚拢窗口", detail: "\(state.desktop.gatheredCount) 个窗口，断开远控自动归位",
+                                     symbol: "rectangle.stack", tint: .mint)
+                    }
+                }
+            }
+            Section {
                 Toggle(isOn: binding(state.launchAtLogin, intents.setLaunchAtLogin)) {
                     SettingLabel("开机启动", symbol: "power", tint: .gray)
                 }
@@ -113,10 +132,11 @@ private struct StatusHeader: View {
 
     private var symbol: String {
         if !state.accessibilityTrusted { return "hand.raised.fill" }
+        let computerOnly = !state.controllers.isEmpty && !ControllerKind.wantsPhoneScreen(state.controllers)
         switch state.connection {
         case .idle: return "iphone.gen3"
         case .reconnecting: return "arrow.triangle.2.circlepath"
-        case .connected: return "iphone.gen3.radiowaves.left.and.right"
+        case .connected: return computerOnly ? "laptopcomputer" : "iphone.gen3.radiowaves.left.and.right"
         }
     }
 }
@@ -178,6 +198,32 @@ private struct PhoneMenu: View {
     }
 }
 
+/// 桌面尺寸：常见笔记本与横屏预设，最后一项自定义逻辑尺寸
+private struct DesktopMenu: View {
+    let current: DesktopChoice
+    let choose: @MainActor (DesktopChoice) -> Void
+    @State private var customizing = false
+
+    var body: some View {
+        Menu(current.customScreen.map { "\(current.title) \($0.sizeText)" } ?? current.title) {
+            ForEach(DesktopPreset.all) { preset in
+                Toggle("\(preset.name) · \(preset.screen.sizeText)", isOn: Binding(
+                    get: { preset.id == current.preset },
+                    set: { _ in choose(DesktopChoice(preset)) }))
+            }
+            Divider()
+            Toggle("自定义尺寸…", isOn: Binding(get: { current.preset == nil }, set: { _ in customizing = true }))
+        }
+        .fixedSize()
+        .popover(isPresented: $customizing, arrowEdge: .bottom) {
+            CustomDesktopForm(current: current) { screen in
+                customizing = false
+                if let screen { choose(DesktopChoice(preset: nil, screen: screen)) }
+            }
+        }
+    }
+}
+
 /// 自己填分辨率：宽 × 高，横着填也行，比例也行（见 PhoneScreen.custom）
 private struct CustomScreenForm: View {
     let current: PhoneChoice
@@ -199,6 +245,45 @@ private struct CustomScreenForm: View {
             .textFieldStyle(.roundedBorder)
             .multilineTextAlignment(.center)
             Text(PhoneScreen.customHint).font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("取消") { done(nil) }
+                    .keyboardShortcut(.cancelAction)
+                Button("使用") { done(screen) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(screen == nil)
+            }
+        }
+        .padding(16)
+        .frame(width: 280)
+        .onAppear {
+            guard let screen = current.customScreen else { return }
+            width = screen.width
+            height = screen.height
+        }
+    }
+}
+
+/// 自己填桌面屏逻辑尺寸
+private struct CustomDesktopForm: View {
+    let current: DesktopChoice
+    let done: (DesktopScreen?) -> Void
+    @State private var width: Int?
+    @State private var height: Int?
+
+    private var screen: DesktopScreen? { DesktopScreen.custom(width, height) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("自定义桌面尺寸").font(.headline)
+            HStack(spacing: 8) {
+                TextField("宽", value: $width, format: .number.grouping(.never))
+                Text("×").foregroundStyle(.secondary)
+                TextField("高", value: $height, format: .number.grouping(.never))
+            }
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.center)
+            Text(DesktopScreen.customHint).font(.callout).foregroundStyle(.secondary)
             HStack {
                 Spacer()
                 Button("取消") { done(nil) }

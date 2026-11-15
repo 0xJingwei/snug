@@ -27,31 +27,39 @@ struct ControllerKindTests {
         }
     }
 
-    @Test("电脑不加")
+    @Test("电脑不加手机屏，但加桌面屏")
     func computer() {
         for name in ["MacBook Air", "张三的Mac mini", "iMac", "DESKTOP-7Q2K1LM", "LAPTOP-AB12", "ThinkPad-X1", "办公室电脑", "Windows 11",
                      "HUAWEI MateBook X Pro", "HONOR MagicBook 14", "RedmiBook Pro 15", "Xiaomi Book Air", "Galaxy Book4",
                      "Surface Laptop 5", "Surface Pro 9"] {
             #expect(ControllerKind(name: name) == .computer, "\(name)")
             #expect(!ControllerKind(name: name).wantsPhoneScreen)
+            #expect(ControllerKind(name: name).wantsDesktopScreen)
         }
     }
 
-    @Test("读不到名字或认不出：按手机处理，照样加手机屏")
+    @Test("读不到名字或认不出：按手机处理，照样加手机屏；单台未知手机不加桌面屏")
     func unknownGetsScreen() {
         #expect(ControllerKind(name: nil) == .unknown)
         #expect(ControllerKind(name: "") == .unknown)
         #expect(ControllerKind(name: "Xiaomi 15") == .unknown)
+        #expect(ControllerKind(name: "iQOO 15") == .unknown)
         #expect(ControllerKind(name: nil).wantsPhoneScreen)
         #expect(ControllerKind(name: "Xiaomi 15").wantsPhoneScreen)
+        #expect(!ControllerKind(name: "iQOO 15").wantsDesktopScreen)
     }
 
-    @Test("几台同时连着：有一台不是电脑就加，全是电脑不加；一台都没读到和读不到名字一样，照样加")
+    @Test("几台同时连着：有一台不是电脑就加手机屏，有一台是电脑就加桌面屏；一台都没读到时两块都兜底提供")
     func several() {
         #expect(ControllerKind.wantsPhoneScreen(["markzhang的MacBook Pro", "iPhone 18 Pro"]))
+        #expect(ControllerKind.wantsDesktopScreen(["markzhang的MacBook Pro", "iPhone 18 Pro"]))
         #expect(ControllerKind.wantsPhoneScreen(["DESKTOP-7Q2K1LM", "Xiaomi 15"]))
+        #expect(ControllerKind.wantsDesktopScreen(["DESKTOP-7Q2K1LM", "Xiaomi 15"]))
         #expect(!ControllerKind.wantsPhoneScreen(["MacBook Air", "DESKTOP-7Q2K1LM"]))
+        #expect(ControllerKind.wantsDesktopScreen(["MacBook Air", "DESKTOP-7Q2K1LM"]))
+        #expect(!ControllerKind.wantsDesktopScreen(["iPhone 18 Pro", "iQOO 15"]))
         #expect(ControllerKind.wantsPhoneScreen([]))
+        #expect(ControllerKind.wantsDesktopScreen([]))
     }
 }
 

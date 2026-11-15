@@ -43,6 +43,19 @@ enum RenderSamples {
                 connected(s)
                 s.config.phone = PhoneChoice(model: nil, screen: PhoneScreen(width: 1080, height: 2400))
             },
+            setting("settings-desktop-ready") { s in
+                s.connection = .connected
+                s.controllers = ["MacBook Pro"]
+                s.desktop.screen = .ready(15)
+            },
+            setting("settings-desktop-gathered-dark", dark: true) { s in
+                s.connection = .connected
+                s.controllers = ["MacBook Pro"]
+                s.desktop.screen = .ready(15)
+                s.streamedDisplay = 15
+                s.desktop.gathered = true
+                s.desktop.gatheredCount = 6
+            },
             setting("settings-update-available") { s in s.update.check = .available(sampleFeed) },
             setting("settings-update-too-old") { s in s.update.problem = .tooOld },
             setting("settings-trouble") { s in

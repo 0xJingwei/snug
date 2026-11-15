@@ -15,6 +15,8 @@ public enum LaunchMode: Equatable, Sendable {
     case app
     /// 正常启动，但不等手机连上，直接加手机屏（开发自测用：没有手机也能看手机屏和上面的列表）
     case previewPhone
+    /// 正常启动，但不等电脑连上，直接加桌面屏并聚拢窗口（开发自测用）
+    case previewDesktop
     /// 只把界面渲染成 PNG
     case render(RenderTarget, output: URL)
     /// 打印从 UU远程 读到的控制端与屏幕
@@ -27,9 +29,10 @@ public enum LaunchMode: Equatable, Sendable {
     用法：Snug [模式]
       （无参数）                      正常启动
       --preview-phone                 正常启动，不等手机连上就加手机屏（开发自测用）
+      --preview-desktop               正常启动，不等电脑连上就加桌面屏并聚拢窗口（开发自测用）
       --render-<界面> <目录>           把界面渲染成 PNG（界面：\(RenderTarget.allCases.map(\.rawValue).joined(separator: " / "))）
       --dump-uu                       打印从 UU远程 读到的表格行、控制端与屏幕
-      --set-mode <屏幕编号> <宽> <高>   把手机屏换到这一档（点，2 倍）（主程序内部用）
+      --set-mode <屏幕编号> <宽> <高>   把虚拟屏换到这一档（点，2 倍）（主程序内部用）
     """
 
     public static func parse(_ arguments: [String]) throws -> LaunchMode {
@@ -61,6 +64,8 @@ public enum LaunchMode: Equatable, Sendable {
         switch flag {
         case "--preview-phone":
             return .previewPhone
+        case "--preview-desktop":
+            return .previewDesktop
         case "--dump-uu":
             return .dumpUU
         case "--set-mode":

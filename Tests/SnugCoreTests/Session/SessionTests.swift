@@ -204,3 +204,43 @@ struct PhoneDemandTests {
     }
 }
 
+@Suite("要不要桌面屏 RemoteSession.wantsDesktopScreen")
+struct DesktopDemandTests {
+    private let overlayOnly = UUSignals(overlayVisible: true, controllers: .unrecognized, captureActive: nil)
+    private let absent = UUSignals(overlayVisible: false, controllers: .unrecognized, captureActive: nil)
+
+    @Test("电脑控制端：连上就要，断网 15 秒重连窗口内一直留着（聚拢的窗口不会因抖动闪回），超时结束才撤")
+    func computerKeepsDesktopWhileReconnecting() {
+        var s = RemoteSession()
+        _ = s.update(table("MacBook Pro"), now: at(0))
+        #expect(s.wantsDesktopScreen(now: at(0)))
+        _ = s.update(absent, now: at(1))
+        #expect(s.update(absent, now: at(2)) == [.interrupted])
+        #expect(s.wantsDesktopScreen(now: at(10)))
+        #expect(s.wantsDesktopScreen(now: at(16)))
+        #expect(s.update(absent, now: at(17.1)) == [.ended])
+        #expect(!s.wantsDesktopScreen(now: at(17.1)))
+    }
+
+    @Test("手机控制端：刚连上先等 2 秒名字宽限期；读到是手机（含 iQOO 15 这类未知型号）就一直不加桌面屏")
+    func phoneDoesNotGetDesktopScreen() {
+        var s = RemoteSession()
+        _ = s.update(overlayOnly, now: at(0))
+        #expect(!s.wantsDesktopScreen(now: at(0)))
+        _ = s.update(table("iQOO 15"), now: at(0.5))
+        #expect(!s.wantsDesktopScreen(now: at(0.5)))
+        #expect(!s.wantsDesktopScreen(now: at(10)))
+        _ = s.update(absent, now: at(11))
+        _ = s.update(absent, now: at(12))
+        #expect(!s.wantsDesktopScreen(now: at(20)))
+    }
+
+    @Test("一直读不到控制端名字：等满 2 秒宽限期后兜底提供桌面屏")
+    func namelessGetsDesktopAfterGrace() {
+        var s = RemoteSession()
+        _ = s.update(overlayOnly, now: at(0))
+        #expect(!s.wantsDesktopScreen(now: at(1.9)))
+        #expect(s.wantsDesktopScreen(now: at(2.0)))
+    }
+}
+

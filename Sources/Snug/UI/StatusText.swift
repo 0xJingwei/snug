@@ -33,9 +33,14 @@ struct StatusText: Equatable {
     private static func detail(_ s: AppState) -> String? {
         if s.quitting { return "正在还原窗口" }
         if !s.accessibilityTrusted { return "用于移动窗口与转换手势" }
-        if !s.config.phoneScreen { return "手机屏已关闭" }
-        if s.connection == .idle { return nil }
+        if !s.config.phoneScreen && !s.config.desktopScreen { return "手机屏与桌面屏已关闭" }
+        if s.connection == .idle {
+            return !s.config.phoneScreen ? "手机屏已关闭" : !s.config.desktopScreen ? "桌面屏已关闭" : nil
+        }
         if s.gesturesFailed { return "手势转换未启用" }
+        if s.desktop.screen != .off, (s.desktopInUse || s.desktop.gathered || s.phone.screen == .off) {
+            return desktopDetail(s)
+        }
         switch s.phone.screen {
         case .preparing: return "正在准备手机屏"
         case .failed: return "手机屏创建失败"
@@ -44,16 +49,36 @@ struct StatusText: Equatable {
             return s.phone.placed.map { "手机屏 · \($0.window.app)" } ?? "手机屏使用中"
         case .off:
             if s.phone.dismissed { return "本次远程已退出手机屏" }
-            return ControllerKind.wantsPhoneScreen(s.controllers) ? nil : "电脑控制端，不提供手机屏"
+            if s.desktop.screen != .off { return desktopDetail(s) }
+            if !ControllerKind.wantsPhoneScreen(s.controllers) {
+                return s.config.desktopScreen ? nil : "桌面屏已关闭"
+            }
+            return s.config.phoneScreen ? nil : "手机屏已关闭"
+        }
+    }
+
+    @MainActor
+    private static func desktopDetail(_ s: AppState) -> String? {
+        switch s.desktop.screen {
+        case .preparing: return "正在准备桌面屏"
+        case .failed: return "桌面屏创建失败"
+        case .ready:
+            if s.desktop.gathering { return "正在聚拢窗口" }
+            if s.desktop.gathered {
+                return s.desktop.gatheredCount > 0 ? "桌面屏 · 已聚拢 \(s.desktop.gatheredCount) 个窗口" : "桌面屏使用中"
+            }
+            return "桌面屏已就绪 · 切屏即聚拢窗口"
+        case .off:
+            return nil
         }
     }
 }
 
 extension AppState {
-    /// 状态的颜色，菜单栏的圆点和设置页顶部的图标共用：绿色远程中；橙色要处理（缺权限、连接中断）；灰色等待连接、手机屏关着
+    /// 状态的颜色，菜单栏的圆点和设置页顶部的图标共用：绿色远程中；橙色要处理（缺权限、连接中断）；灰色等待连接或总开关全关
     var statusColor: Color {
         guard accessibilityTrusted else { return .orange }
-        guard config.phoneScreen else { return .gray }
+        guard config.phoneScreen || config.desktopScreen else { return .gray }
         switch connection {
         case .connected: return .green
         case .reconnecting: return .orange
@@ -84,6 +109,16 @@ extension PhoneScreen {
     var sizeText: String { "\(width) × \(height)" }
     /// 自定义输入下面的说明（设置窗口、手机屏共用）
     static let customHint = "屏幕分辨率或比例，如 1080 × 2400、9 × 20"
+}
+
+extension DesktopChoice {
+    var title: String { preset ?? "自定义" }
+    var customScreen: DesktopScreen? { preset == nil ? screen : nil }
+}
+
+extension DesktopScreen {
+    var sizeText: String { "\(width) × \(height)" }
+    static let customHint = "逻辑尺寸（点），范围 800–2560 × 800–1600，如 1920 × 1080"
 }
 
 extension PhoneDesk.Notice {

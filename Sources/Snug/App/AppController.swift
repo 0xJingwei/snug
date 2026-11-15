@@ -14,6 +14,7 @@ final class AppController {
     let state = AppState()
     let updater: Updater
     let desk: PhoneDesk
+    let desktopDesk: DesktopDesk
     /// 手机屏 App 资源库的统一数据源。界面碰得到的系统入口只有 desk 和它
     let catalog: AppCatalog
     /// 用户从菜单或设置里点「退出」（由 AppDelegate 接到退出流程上）
@@ -22,6 +23,8 @@ final class AppController {
     let store: ConfigStore
     /// --preview-phone：不等手机连上就要手机屏
     private let previewPhone: Bool
+    /// --preview-desktop：不等电脑连上就要桌面屏并自动聚拢窗口
+    private let previewDesktop: Bool
     private let sensor = UUSensor()
     private var session = RemoteSession()
     private let touch = TouchTap()
@@ -32,17 +35,21 @@ final class AppController {
     /// 单调时钟的起点：系统改时间不会让「已经过了多久」算错
     private let anchor = (date: Date(), uptime: ProcessInfo.processInfo.systemUptime)
 
-    init(paths: SnugPaths, previewPhone: Bool = false) {
+    init(paths: SnugPaths, previewPhone: Bool = false, previewDesktop: Bool = false) {
         self.previewPhone = previewPhone
+        self.previewDesktop = previewDesktop
         store = ConfigStore(url: paths.config)
         let phones = Self.loadPhones()
         // 选过的机型按机型库现在的数值来（机型库改过数值时跟着改），建屏前就定下来
         let phone = phones.resolve(store.config.phone)
+        let desktop = store.config.desktop.resolved()
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
         let windows = WindowService()
         let apps = AppService()
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
                          defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: phone.screen))
+        desktopDesk = DesktopDesk(displays: DesktopDisplayService(helper: helper), windows: windows, paths: paths,
+                                  screen: desktop.screen)
         catalog = AppCatalog(apps: apps, windows: windows)
         state.config = store.config
         state.phones = phones
@@ -52,6 +59,10 @@ final class AppController {
         if phone != store.config.phone {
             let old = store.config.phone.screen
             changeConfig("手机型号 \(phone.title) 按机型库更新：\(old.sizeText) → \(phone.screen.sizeText)") { $0.phone = phone }
+        }
+        if desktop != store.config.desktop {
+            let old = store.config.desktop.screen
+            changeConfig("桌面尺寸 \(desktop.title) 按预设更新：\(old.sizeText) → \(desktop.screen.sizeText)") { $0.desktop = desktop }
         }
     }
 
@@ -81,14 +92,23 @@ final class AppController {
             guard let self else { return }
             session.noteSelfInducedChange(at: now)
         }
+        desktopDesk.onChange = { [weak self] desktop in self?.state.desktop = desktop }
+        desktopDesk.onTopologyChange = { [weak self] in
+            guard let self else { return }
+            session.noteSelfInducedChange(at: now)
+        }
         let watcher = DisplayWatcher { [weak self] in
             self?.desk.displaysChanged()
+            self?.desktopDesk.displaysChanged()
             self?.syncGestures()
         }
         watcher.start()
         self.watcher = watcher
         sensor.start()
-        if state.accessibilityTrusted { desk.recover() }
+        if state.accessibilityTrusted {
+            desk.recover()
+            desktopDesk.recover()
+        }
         let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -96,8 +116,10 @@ final class AppController {
         RunLoop.main.add(timer, forMode: .common)
         tickTimer = timer
         tick()
-        Log.info("开始监控（手机屏\(store.config.phoneScreen ? "已开" : "已关")，手势\(store.config.gestures ? "已开" : "已关")"
-                 + "\(previewPhone ? "，预览模式：不等手机直接加手机屏" : "")）")
+        Log.info("开始监控（手机屏\(store.config.phoneScreen ? "已开" : "已关")，桌面屏\(store.config.desktopScreen ? "已开" : "已关")，"
+                 + "手势\(store.config.gestures ? "已开" : "已关")"
+                 + "\(previewPhone ? "，预览模式：不等手机直接加手机屏" : "")"
+                 + "\(previewDesktop ? "，预览模式：不等电脑直接加桌面屏并聚拢窗口" : "")）")
     }
 
     /// 停止监控（退出收尾前调用）
@@ -122,11 +144,21 @@ final class AppController {
         for t in transitions { Log.info("会话：\(Self.describe(t))") }
         // 远程结束就是不要手机屏了。下一次在同一拍里开始时 wantsPhoneScreen 前后都是真，不先说一声「不要」，
         // 上一次在手机上退出的手机屏会带进这一次。同一拍里先「不要」再「要」不会撤屏重建（PhoneDesk 排队时读的是最新结论）
-        if transitions.contains(.ended) { desk.setWanted(false) }
+        if transitions.contains(.ended) {
+            desk.setWanted(false)
+            desktopDesk.setWanted(false)
+        }
         desk.setWanted(wantsPhoneScreen)
+        desktopDesk.setWanted(wantsDesktopScreen)
+        let streamingDesktop = previewDesktop || (state.desktop.display != nil && sample.streamingDisplay == state.desktop.display)
+        desktopDesk.setContext(
+            streaming: streamingDesktop,
+            excludedDisplays: state.phone.display.map { [$0] } ?? [],
+            excludedWindows: state.phone.placed.map { [$0.window.key] } ?? [])
         if now.timeIntervalSince(lastVerifyAt) >= Self.verifyInterval {
             lastVerifyAt = now
             desk.verifyPlacement()
+            desktopDesk.syncWindows()
         }
         state.update(\.connection, session.isConnected ? .connected : (session.inEpisode ? .reconnecting : .idle))
         state.update(\.controllers, session.controllers)
@@ -135,9 +167,15 @@ final class AppController {
     }
 
     /// 要不要手机屏：开着总开关、有权限，这次远程的控制端里有不是电脑的（见 RemoteSession.wantsPhoneScreen）
-    private var wantsPhoneScreen: Bool {
+    var wantsPhoneScreen: Bool {
         guard store.config.phoneScreen, state.accessibilityTrusted else { return false }
         return previewPhone || session.wantsPhoneScreen(now: now)
+    }
+
+    /// 要不要桌面屏：开着总开关、有权限，这次远程的控制端里有电脑（或读不到控制端名字时兜底提供）
+    var wantsDesktopScreen: Bool {
+        guard store.config.desktopScreen, state.accessibilityTrusted else { return false }
+        return previewDesktop || session.wantsDesktopScreen(now: now)
     }
 
     /// 权限是用户在系统设置里给的，随时会变：刚给上时把上次没放回去的窗口放回去
@@ -146,7 +184,10 @@ final class AppController {
         guard trusted != state.accessibilityTrusted else { return }
         state.accessibilityTrusted = trusted
         Log.info("辅助功能权限：\(trusted ? "已授权" : "被收回")")
-        if trusted { desk.recover() }
+        if trusted {
+            desk.recover()
+            desktopDesk.recover()
+        }
     }
 
     // MARK: 手机屏
@@ -156,7 +197,7 @@ final class AppController {
         syncGestures()
     }
 
-    /// 手势翻译只在手机屏在、并且开着手势时运行；范围跟着手机屏（换档、屏幕重排时 DisplayWatcher 也会调到这里）
+    /// 手势翻译只在手机屏在、并且开着手势时运行；范围跟着手机屏（换档、屏幕重排时 DisplayWatcher 也会调到这里），不干扰桌面屏和物理屏
     func syncGestures() {
         let region = store.config.gestures ? state.phone.display.map { TouchRegion(phoneScreen: CGDisplayBounds($0)) } : nil
         state.update(\.gesturesFailed, !touch.setRegion(region))

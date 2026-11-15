@@ -73,6 +73,8 @@ public protocol WindowControl: Sendable {
     func snapshot() async -> [WindowKey: CGRect]
     /// 把位置变了的窗口放回快照里的位置（except 那个除外）
     func restore(_ snapshot: [WindowKey: CGRect], except: WindowKey?) async
+    /// 所有在跑未隐藏普通 App（排除 UU 与 Snug）的标准窗口及正在询问用户的对话框窗口，跨所有物理屏与桌面空间，按从前到后排
+    func gatherableWindows() async -> [WindowInfo]
 }
 
 /// 启动、唤回、新建窗口、退出 App

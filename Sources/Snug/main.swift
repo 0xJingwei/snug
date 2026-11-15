@@ -24,11 +24,13 @@ case .setMode(let display, let width, let height):
     Log.info("切屏幕 #\(display) 到 2 倍 \(width)x\(height)：\(outcome)")
     Log.flush()
     exit(outcome == .switched ? 0 : 1)
-case .app, .previewPhone:
+case .app, .previewPhone, .previewDesktop:
     let paths = SnugPaths.standard
     Log.setSink(FileLogSink(url: paths.logFile))
     let app = NSApplication.shared
-    let delegate = MainActor.assumeIsolated { AppDelegate(paths: paths, previewPhone: mode == .previewPhone) }
+    let delegate = MainActor.assumeIsolated {
+        AppDelegate(paths: paths, previewPhone: mode == .previewPhone, previewDesktop: mode == .previewDesktop)
+    }
     app.delegate = delegate
     app.setActivationPolicy(.accessory)
     app.run()

@@ -157,7 +157,31 @@ public final class WindowService: WindowControl {
         }
     }
 
-    // MARK: App 资源库（手机屏上的卡片）
+    // MARK: App 资源库（手机屏上的卡片）与桌面屏聚拢
+
+    public func gatherableWindows() async -> [WindowInfo] {
+        let apps: [RunningApp] = await MainActor.run {
+            AppService.regular()
+                .filter { !$0.isHidden }
+                .compactMap { app in
+                    guard let info = AppService.info(for: app), !AppList.excludedBundles.contains(info.bundleID) else { return nil }
+                    return RunningApp(pid: app.processIdentifier, app: info, windows: [])
+                }
+        }
+        return await run {
+            let now = ProcessInfo.processInfo.systemUptime
+            let running = Set(apps.map(\.pid))
+            self.remote.withLock { $0 = $0.filter { running.contains($0.key) } }
+            let filled = apps.map { app in
+                var app = app
+                app.windows = AX.allWindows(pid: app.pid) { self.remoteWindows(pid: app.pid, now: now) }
+                    .filter { (AX.isStandard($0) || AX.isAsking($0)) && !AX.flag($0, kAXMinimizedAttribute) }
+                    .compactMap { element in AX.windowID(element).map { Self.info(element, key: WindowKey(pid: app.pid, id: $0), of: app.app) } }
+                return app
+            }
+            return AppList.ordered(filled, frontToBack: Self.frontToBack()).flatMap(\.windows)
+        }
+    }
 
     /// 给在跑的 App 补上窗口：不管在哪块屏、哪个桌面空间，全屏、最小化的也算。App 和窗口都按最近用过排
     public func withWindows(_ apps: [RunningApp]) async -> [RunningApp] {

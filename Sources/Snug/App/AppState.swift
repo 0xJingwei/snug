@@ -22,6 +22,7 @@ final class AppState {
     /// UU 此刻在推的屏
     var streamedDisplay: DisplayID?
     var phone = PhoneDesk.State()
+    var desktop = DesktopDesk.State()
     /// 手势翻译要开却没开起来（建事件监听失败）
     var gesturesFailed = false
     var accessibilityTrusted = false
@@ -45,6 +46,12 @@ final class AppState {
         return streamedDisplay == display
     }
 
+    /// UU 正在推桌面屏，也就是用户此刻正在桌面屏上
+    var desktopInUse: Bool {
+        guard let display = desktop.display else { return false }
+        return streamedDisplay == display
+    }
+
     /// 只在值真的变了时才写，免得每拍都让界面重算
     func update<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<AppState, T>, _ value: T) {
         if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
@@ -65,6 +72,9 @@ protocol AppIntents: AnyObject {
     func setPhoneScreen(_ on: Bool)
     func setGestures(_ on: Bool)
     func setZoomSteps(_ steps: Int)
+    func setDesktopScreen(_ on: Bool)
+    func setDesktop(_ desktop: DesktopChoice)
+    func restoreDesktopWindows()
     func setLaunchAtLogin(_ on: Bool)
     /// 开机启动待允许：直接打开系统设置的「登录项」
     func openLoginItemsSettings()

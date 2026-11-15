@@ -4,7 +4,10 @@ import ServiceManagement
 import SnugCore
 
 extension AppController: AppIntents {
-    func setPhoneScreen(_ on: Bool) { changeConfig("手机屏 → \(on ? "开" : "关")") { $0.phoneScreen = on } }
+    func setPhoneScreen(_ on: Bool) {
+        guard changeConfig("手机屏 → \(on ? "开" : "关")", { $0.phoneScreen = on }) else { return }
+        desk.setWanted(wantsPhoneScreen)
+    }
 
     func setGestures(_ on: Bool) {
         guard changeConfig("手机手势 → \(on ? "开" : "关")", { $0.gestures = on }) else { return }
@@ -80,9 +83,24 @@ extension AppController: AppIntents {
         desk.setFit(fit)
     }
 
+    func setDesktopScreen(_ on: Bool) {
+        guard changeConfig("桌面屏 → \(on ? "开" : "关")", { $0.desktopScreen = on }) else { return }
+        desktopDesk.setWanted(wantsDesktopScreen)
+    }
+
+    func setDesktop(_ desktop: DesktopChoice) {
+        guard changeConfig("桌面尺寸 → \(desktop.title) \(desktop.screen.sizeText)", { $0.desktop = desktop }) else { return }
+        desktopDesk.setScreen(desktop.screen)
+    }
+
+    func restoreDesktopWindows() {
+        Log.info("手动还原桌面屏已聚拢窗口")
+        desktopDesk.restoreWindows()
+    }
+
     // MARK: 退出收尾
 
-    /// 停止监控，放回窗口、撤掉手机屏。timeout 内没收完也照样回调：手机屏会随进程退出消失，
+    /// 停止监控，放回窗口、撤掉手机屏与桌面屏。timeout 内没收完也照样回调：虚拟屏会随进程退出消失，
     /// 窗口位置和字号留给下次启动按还原记录处理。超时用加进 .common 的 Timer，退出流程的 run loop 模式下也会触发
     func finishForQuit(timeout: TimeInterval, completion: @escaping @MainActor () -> Void) {
         state.quitting = true
@@ -97,6 +115,7 @@ extension AppController: AppIntents {
         }
         Task { @MainActor in
             await desk.shutdown()
+            await desktopDesk.shutdown()
             finish(true)
         }
         let timer = Timer(timeInterval: timeout, repeats: false) { _ in

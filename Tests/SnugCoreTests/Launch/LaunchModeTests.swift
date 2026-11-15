@@ -28,10 +28,14 @@ struct LaunchModeTests {
         #expect(try LaunchMode.parse(["--set-mode", "14", "740", "1302"]) == .setMode(display: 14, width: 740, height: 1302))
     }
 
-    @Test("--dump-uu、--preview-phone")
+    @Test("--dump-uu、--preview-phone、--preview-desktop")
     func flags() throws {
         #expect(try LaunchMode.parse(["--dump-uu"]) == .dumpUU)
         #expect(try LaunchMode.parse(["--preview-phone"]) == .previewPhone)
+        #expect(try LaunchMode.parse(["--preview-desktop"]) == .previewDesktop)
+        #expect(throws: LaunchModeError.conflicting("--preview-phone", "--preview-desktop")) {
+            try LaunchMode.parse(["--preview-phone", "--preview-desktop"])
+        }
     }
 
     @Test("缺参数值、数字写错、两个模式一起：报错而不是悄悄按正常模式启动")

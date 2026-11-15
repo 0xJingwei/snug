@@ -30,7 +30,9 @@ enum UUDump {
         }
         print("控制端：")
         for name in names { print("  \(name)：\(ControllerKind(name: name) == .computer ? "电脑" : "手机、平板或认不出")") }
-        print(ControllerKind.wantsPhoneScreen(names) ? "→ 有一台不是电脑，加手机屏" : "→ 全是电脑，不加")
+        let phoneAction = ControllerKind.wantsPhoneScreen(names) ? "加手机屏" : "不加手机屏"
+        let desktopAction = ControllerKind.wantsDesktopScreen(names) ? "加桌面屏" : "不加桌面屏"
+        print("→ \(phoneAction)，\(desktopAction)")
         return 0
     }
 
@@ -41,7 +43,12 @@ enum UUDump {
         CGGetOnlineDisplayList(count, &ids, &count)
         print("屏幕：")
         for id in ids.prefix(Int(count)) {
-            let mine = CGDisplayVendorNumber(id) == PhoneScreenSpec.vendorID ? "（Snug 手机屏）" : ""
+            let mine: String
+            if CGDisplayVendorNumber(id) == PhoneScreenSpec.vendorID {
+                mine = CGDisplayModelNumber(id) == DesktopScreenSpec.productID ? "（Snug 桌面屏）" : "（Snug 手机屏）"
+            } else {
+                mine = ""
+            }
             print("  #\(id) \(Screens.name(of: id))\(mine) \(DisplayMode.describe(id))")
         }
     }

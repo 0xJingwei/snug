@@ -26,6 +26,13 @@ public enum DisplayMode {
         return mode.width
     }
 
+    /// 此刻 2 倍模式的逻辑宽高（点）；不是 2 倍、或屏不在了返回 nil
+    public static func hiDPISize(_ id: DisplayID) -> DesktopScreen? {
+        guard let mode = CGDisplayCopyDisplayMode(id),
+              mode.pixelWidth == 2 * mode.width, mode.pixelHeight == 2 * mode.height else { return nil }
+        return DesktopScreen(width: mode.width, height: mode.height)
+    }
+
     public static func describe(_ id: DisplayID) -> String {
         guard let m = CGDisplayCopyDisplayMode(id) else { return "无模式" }
         return "\(m.width)x\(m.height)pt/\(m.pixelWidth)x\(m.pixelHeight)px"

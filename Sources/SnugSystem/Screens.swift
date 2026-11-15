@@ -4,9 +4,13 @@ import SnugCore
 
 @MainActor
 public enum Screens {
-    public static func screen(for id: DisplayID) -> NSScreen? {
+    public static func displayID(of screen: NSScreen) -> DisplayID? {
         let key = NSDeviceDescriptionKey("NSScreenNumber")
-        return NSScreen.screens.first { ($0.deviceDescription[key] as? NSNumber)?.uint32Value == id }
+        return (screen.deviceDescription[key] as? NSNumber)?.uint32Value
+    }
+
+    public static func screen(for id: DisplayID) -> NSScreen? {
+        NSScreen.screens.first { displayID(of: $0) == id }
     }
 
     /// 在「显示器」设置里的名字；找不到就用编号

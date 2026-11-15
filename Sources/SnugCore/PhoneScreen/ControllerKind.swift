@@ -37,10 +37,16 @@ public enum ControllerKind: Equatable, Sendable {
     }
 
     public var wantsPhoneScreen: Bool { self != .computer }
+    public var wantsDesktopScreen: Bool { self == .computer }
 
     /// 同时连着的几台控制端要不要手机屏：全是电脑才不要；一台都没读到，和读不到名字一样按手机处理
     public static func wantsPhoneScreen(_ names: [String]) -> Bool {
         names.isEmpty || names.contains { ControllerKind(name: $0).wantsPhoneScreen }
+    }
+
+    /// 同时连着的几台控制端要不要桌面屏：有电脑控制端就要；一台都没读到（表格被关或未识别）也兜底提供，不选就不动窗口
+    public static func wantsDesktopScreen(_ names: [String]) -> Bool {
+        names.isEmpty || names.contains { ControllerKind(name: $0).wantsDesktopScreen }
     }
 }
 
@@ -53,5 +59,13 @@ extension RemoteSession {
         let controllers = episodeControllers(at: now)
         if controllers.isEmpty, now.timeIntervalSince(began) < ControllerKind.nameGrace { return false }
         return ControllerKind.wantsPhoneScreen(controllers)
+    }
+
+    /// 这次远程要不要桌面屏：控制端里有电脑，或过完宽限期仍读不到控制端名字时兜底提供
+    public func wantsDesktopScreen(now: Date) -> Bool {
+        guard let began = episodeBeganAt else { return false }
+        let controllers = episodeControllers(at: now)
+        if controllers.isEmpty, now.timeIntervalSince(began) < ControllerKind.nameGrace { return false }
+        return ControllerKind.wantsDesktopScreen(controllers)
     }
 }

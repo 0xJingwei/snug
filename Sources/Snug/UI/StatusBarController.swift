@@ -29,10 +29,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private static let icon: NSImage? = NSImage(systemSymbolName: "iphone.gen3", accessibilityDescription: "Snug")?
         .withSymbolConfiguration(.init(pointSize: 15, weight: .medium))
 
-    /// 关着手机屏时图标变灰；提示文字随状态变
+    /// 手机屏与桌面屏都关着、或未授权时图标变灰；提示文字随状态变
     private func refreshButton() {
         withObservationTracking {
-            item.button?.appearsDisabled = !state.config.phoneScreen || !state.accessibilityTrusted
+            item.button?.appearsDisabled = (!state.config.phoneScreen && !state.config.desktopScreen) || !state.accessibilityTrusted
             item.button?.toolTip = "Snug：\(StatusText(state).headline)"
         } onChange: { [weak self] in
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.refreshButton() } }
@@ -42,6 +42,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(status())
+        if state.desktop.gatheredCount > 0 {
+            menu.addItem(action("还原已聚拢窗口（\(state.desktop.gatheredCount)）", #selector(restoreDesktop),
+                                symbol: "arrow.uturn.backward.square"))
+        }
         if state.legacyAppRunning { menu.addItem(action("退出旧版 UU远程伴侣", #selector(quitLegacy), symbol: "xmark.circle")) }
         menu.addItem(.separator())
         menu.addItem(action("设置…", #selector(openSettings), key: ",", symbol: "gearshape"))
@@ -70,6 +74,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         return it
     }
 
+    @objc private func restoreDesktop() { intents.restoreDesktopWindows() }
     @objc private func quitLegacy() { intents.quitLegacyApp() }
     @objc private func openSettings() { navigation.openSettings() }
     @objc private func openAbout() { navigation.openAbout() }

@@ -56,6 +56,9 @@ final class RenderStub: AppIntents, PhoneIntents, Navigation {
     func setPhoneScreen(_ on: Bool) {}
     func setGestures(_ on: Bool) {}
     func setZoomSteps(_ steps: Int) {}
+    func setDesktopScreen(_ on: Bool) {}
+    func setDesktop(_ desktop: DesktopChoice) {}
+    func restoreDesktopWindows() {}
     func setLaunchAtLogin(_ on: Bool) {}
     func openLoginItemsSettings() {}
     func markWelcomed() {}
