@@ -3,60 +3,6 @@ import Foundation
 import Testing
 @testable import SnugCore
 
-private let ghostty = WindowInfo(key: WindowKey(pid: 10, id: 7), app: "Ghostty", bundleID: "com.mitchellh.ghostty", title: "~/snug")
-private let finder = WindowInfo(key: WindowKey(pid: 11, id: 8), app: "Finder", bundleID: "com.apple.finder", title: "下载")
-private let safari = WindowInfo(key: WindowKey(pid: 12, id: 9), app: "Safari", bundleID: "com.apple.Safari", title: "GitHub")
-private let notes = WindowInfo(key: WindowKey(pid: 13, id: 10), app: "备忘录", bundleID: "com.apple.Notes", title: "清单")
-private let ghosttyHome = CGRect(x: 100, y: 100, width: 1200, height: 800)
-private let finderHome = CGRect(x: 300, y: 200, width: 800, height: 500)
-private let safariHome = CGRect(x: 0, y: 25, width: 1512, height: 920)
-/// Safari 退出全屏后的平时位置
-private let safariWindowed = CGRect(x: 200, y: 100, width: 1000, height: 700)
-private let notesHome = CGRect(x: 400, y: 300, width: 700, height: 500)
-private let phoneArea = FakeDisplays.area(width: ScreenFit.baseWidth)
-
-/// 一套假系统 + 一个 PhoneDesk。每个用例一个临时数据目录
-@MainActor
-private final class Rig {
-    private let tmp: TempDir
-    let paths: SnugPaths
-    let journal = Journal()
-    let displays: FakeDisplays
-    let windows: FakeWindows
-    let timeline = ManualTimeline()
-    let desk: PhoneDesk
-
-    init(dataDirectory: URL? = nil) throws {
-        let tmp = try TempDir()
-        let dir = tmp.url
-        self.tmp = tmp
-        paths = SnugPaths(dataDirectory: dataDirectory ?? dir, logFile: dir.appendingPathComponent("Snug.log"))
-        displays = FakeDisplays(journal: journal)
-        windows = FakeWindows(journal: journal, ledger: paths.phoneRecord)
-        windows.add(ghostty.key, frame: ghosttyHome)
-        windows.add(finder.key, frame: finderHome)
-        windows.add(safari.key, frame: safariHome, fullScreen: true, windowed: safariWindowed)
-        windows.add(notes.key, frame: notesHome, minimized: true)
-        desk = PhoneDesk(displays: displays, windows: windows, timeline: timeline, paths: paths)
-        let timeline = timeline
-        displays.clock = { timeline.now }
-    }
-
-    var record: PhoneRecord? { RestoreRecord<PhoneRecord>(url: paths.phoneRecord).pending() }
-
-    /// 加好手机屏，流水账清空
-    func ready() async {
-        desk.setWanted(true)
-        await desk.idle()
-        journal.clear()
-    }
-
-    func pull(_ w: WindowInfo) async {
-        desk.pull(w)
-        await desk.idle()
-    }
-}
-
 @Suite("手机屏调度 PhoneDesk")
 @MainActor
 struct PhoneDeskTests {

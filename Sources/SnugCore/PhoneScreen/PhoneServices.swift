@@ -18,6 +18,8 @@ public protocol PhoneDisplays: AnyObject {
     func bounds(_ id: DisplayID) -> CGRect?
     /// 窗口该铺满的区域（辅助功能坐标，左上原点）：这块屏扣掉菜单栏和底部小横条
     func windowArea(_ id: DisplayID) -> CGRect?
+    /// 主屏的可放区域（辅助功能坐标）：原位落在手机屏上的窗口（App 记得上次在手机屏上），原位改记成在这里居中
+    func mainArea() -> CGRect?
 }
 
 /// 窗口此刻的样子
@@ -56,10 +58,28 @@ public protocol WindowControl: Sendable {
     /// 给窗口所在的 App 发 ⌘= / ⌘-（steps 为负就缩小）。找不到窗口就不发，返回 false
     @discardableResult
     func zoom(_ window: WindowKey, steps: Int) async -> Bool
+    /// App 此刻在屏上的标准窗口。等新窗口出现时 0.1 秒问一次，只问当前桌面空间，一次不到 1 毫秒
+    func shownWindows(of pid: Int32) async -> [WindowInfo]
+    /// App 挂着对话框（退出时的「要存储吗」）的那个窗口
+    func windowAskingToSave(of pid: Int32) async -> WindowInfo?
     /// 当前桌面空间里普通窗口此刻的位置。加屏、撤屏前拍一张：macOS 会把窗口挪来挪去
     func snapshot() async -> [WindowKey: CGRect]
     /// 把位置变了的窗口放回快照里的位置（except 那个除外）
     func restore(_ snapshot: [WindowKey: CGRect], except: WindowKey?) async
+}
+
+/// 启动、唤回、新建窗口、退出 App
+public protocol AppControl: Sendable {
+    /// 在跑就给进程号
+    func pid(of app: AppInfo) async -> Int32?
+    /// 没在跑就启动，在跑就「重新打开」（同点 Dock 图标，没窗口的 App 会开出窗口）。返回进程号，打不开返回 nil
+    func open(_ app: AppInfo) async -> Int32?
+    /// 按下菜单里快捷键为 ⌘N 的那一项（App 不在前台也行）；没有这一项、或 App 没响应返回 false
+    func newWindow(pid: Int32) async -> Bool
+    /// 请 App 退出（同 ⌘Q）。有未存储的内容时 App 会先问，对话框挂在文档窗口上
+    func quit(pid: Int32) async
+    func forceQuit(pid: Int32) async
+    func isRunning(pid: Int32) async -> Bool
 }
 
 /// 时间：PhoneDesk 只认这个，测试里换成不真等的

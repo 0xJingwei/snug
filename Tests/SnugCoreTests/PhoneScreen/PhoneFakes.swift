@@ -79,6 +79,10 @@ final class FakeDisplays: PhoneDisplays {
         guard !areaUnavailable, let width = widths[id] else { return nil }
         return Self.area(width: width)
     }
+
+    /// 假主屏：左上角在原点，1512 宽，扣掉菜单栏
+    nonisolated static let main = CGRect(x: 0, y: 25, width: 1512, height: 957)
+    func mainArea() -> CGRect? { Self.main }
 }
 
 /// 假窗口：记住每个窗口的位置、是否全屏、是否最小化、字号级数
@@ -92,6 +96,10 @@ final class FakeWindows: WindowControl {
         /// App 把窗口藏起来了（被隐藏、关成了隐藏）：还在，但不在屏上
         var hidden = false
         var zoom = 0
+        /// 到这个时刻才出现在屏上（App 刚启动、窗口还没画出来）
+        var shownFrom: TimeInterval = 0
+        /// 列表、捕获新窗口时报出来的样子
+        var info: WindowInfo?
     }
 
     let journal: Journal
@@ -103,6 +111,9 @@ final class FakeWindows: WindowControl {
     private let grows = Locked(false)
     private let minSizes = Locked<[WindowKey: CGSize]>([:])
     private let moveHook = Locked<(@Sendable (WindowKey) -> Void)?>(nil)
+    private let asking = Locked<WindowKey?>(nil)
+    /// 判断窗口出没出现在屏上的时钟（见 Window.shownFrom）
+    let clock = Locked<(@Sendable () -> TimeInterval)?>(nil)
     /// 设了就在每次挪窗口、发按键时记一下此刻还原记录在不在（检查「先记账再动手」）
     let ledger: URL?
 
@@ -131,9 +142,19 @@ final class FakeWindows: WindowControl {
     private var reachable: Bool { !blocked.withLock { $0 } }
 
     /// windowed：全屏窗口退出全屏后的平时位置
-    func add(_ key: WindowKey, frame: CGRect, fullScreen: Bool = false, windowed: CGRect? = nil, minimized: Bool = false) {
-        state.withLock { $0[key] = Window(frame: frame, fullScreen: fullScreen, otherFrame: windowed, minimized: minimized) }
+    func add(_ key: WindowKey, frame: CGRect, fullScreen: Bool = false, windowed: CGRect? = nil, minimized: Bool = false,
+             hidden: Bool = false, shownFrom: TimeInterval = 0, info: WindowInfo? = nil) {
+        state.withLock {
+            $0[key] = Window(frame: frame, fullScreen: fullScreen, otherFrame: windowed, minimized: minimized, hidden: hidden,
+                             shownFrom: shownFrom, info: info)
+        }
     }
+    /// App 重新显示藏起来的窗口（唤回）
+    func unhide(_ key: WindowKey) { state.withLock { $0[key]?.hidden = false } }
+    /// App 弹出「要存储吗」，挂在这个窗口上
+    func askToSave(_ key: WindowKey?) { asking.withLock { $0 = key } }
+    /// 这个进程的窗口全关掉（App 退出）
+    func closeAll(of pid: Int32) { state.withLock { $0 = $0.filter { $0.key.pid != pid } } }
 
     func close(_ key: WindowKey) { _ = state.withLock { $0.removeValue(forKey: key) } }
     /// 像飞书、微信点关闭那样：窗口藏起来，还在
@@ -150,7 +171,25 @@ final class FakeWindows: WindowControl {
 
     func isShown(_ window: WindowKey) async -> Bool {
         guard let w = self.window(window) else { return false }
-        return !w.minimized && !w.hidden
+        return shown(w)
+    }
+
+    private func shown(_ w: Window) -> Bool {
+        !w.minimized && !w.hidden && (clock.withLock { $0 }?() ?? 0) >= w.shownFrom
+    }
+
+    private func info(_ key: WindowKey, _ w: Window) -> WindowInfo {
+        w.info ?? WindowInfo(key: key, app: "App\(key.pid)", bundleID: nil, title: "")
+    }
+
+    func shownWindows(of pid: Int32) async -> [WindowInfo] {
+        state.withLock { $0 }.filter { $0.key.pid == pid && shown($0.value) }
+            .sorted { $0.key.id < $1.key.id }.map { info($0.key, $0.value) }
+    }
+
+    func windowAskingToSave(of pid: Int32) async -> WindowInfo? {
+        guard let key = asking.withLock({ $0 }), key.pid == pid, let w = window(key) else { return nil }
+        return info(key, w)
     }
 
     func look(_ window: WindowKey) async -> WindowLook? {
@@ -212,6 +251,108 @@ final class FakeWindows: WindowControl {
         for (key, frame) in snapshot where key != except && self.window(key)?.frame != frame {
             setFrame(key, frame)
         }
+    }
+}
+
+/// 假 App：启动、唤回、⌘N 时按事先登记的样子开出窗口（可以晚一会儿才出现在屏上），退出时按登记的反应来
+final class FakeApps: AppControl {
+    /// 打开、新建窗口时开出来的窗口：编号、位置、多久后出现在屏上；全屏的给出退出全屏后的位置
+    struct Spawn: Sendable {
+        var id: UInt32
+        var frame: CGRect
+        var delay: TimeInterval = 0
+        var fullScreen = false
+        var windowed: CGRect?
+        var title = ""
+    }
+
+    enum Quit: Sendable {
+        case exits
+        /// 弹出「要存储吗」，挂在这个编号的窗口上
+        case asksToSave(UInt32)
+        /// 一直不退
+        case stalls
+    }
+
+    let journal: Journal
+    let windows: FakeWindows
+    private let timeline: ManualTimeline
+    private let running = Locked<[String: Int32]>([:])
+    private let names = Locked<[Int32: String]>([:])
+    private let spawns = Locked<[String: Spawn]>([:])
+    private let quits = Locked<[String: Quit]>([:])
+    private let reshows = Locked<[String: UInt32]>([:])
+    private let nextPID = Locked<Int32>(500)
+    /// 打不开（启动失败）
+    let launchFails = Locked(false)
+
+    init(journal: Journal, windows: FakeWindows, timeline: ManualTimeline) {
+        self.journal = journal
+        self.windows = windows
+        self.timeline = timeline
+    }
+
+    /// 登记一个在跑的 App
+    func run(_ app: AppInfo, pid: Int32) {
+        running.withLock { $0[app.bundleID] = pid }
+        names.withLock { $0[pid] = app.bundleID }
+    }
+    /// 打开、⌘N 时开出这个窗口；不登记的 App 菜单里没有 ⌘N
+    func willSpawn(_ app: AppInfo, _ spawn: Spawn) { spawns.withLock { $0[app.bundleID] = spawn } }
+    func onQuit(_ app: AppInfo, _ quit: Quit) { quits.withLock { $0[app.bundleID] = quit } }
+    /// 唤回时重新显示这个编号的窗口（原来关成了隐藏），不开新的
+    func willReshow(_ app: AppInfo, id: UInt32) { reshows.withLock { $0[app.bundleID] = id } }
+
+    private func spawn(for bundle: String, pid: Int32) {
+        guard let s = spawns.withLock({ $0[bundle] }) else { return }
+        let key = WindowKey(pid: pid, id: s.id)
+        windows.add(key, frame: s.frame, fullScreen: s.fullScreen, windowed: s.windowed, shownFrom: timeline.now + s.delay,
+                    info: WindowInfo(key: key, app: bundle, bundleID: bundle, title: s.title))
+    }
+
+    func pid(of app: AppInfo) async -> Int32? { running.withLock { $0[app.bundleID] } }
+
+    func open(_ app: AppInfo) async -> Int32? {
+        journal.add("open \(app.bundleID)")
+        guard !launchFails.withLock({ $0 }) else { return nil }
+        if let pid = running.withLock({ $0[app.bundleID] }) {
+            if let id = reshows.withLock({ $0[app.bundleID] }) { windows.unhide(WindowKey(pid: pid, id: id)) } else { spawn(for: app.bundleID, pid: pid) }
+            return pid
+        }
+        let pid = nextPID.withLock { $0 += 1; return $0 }
+        run(app, pid: pid)
+        spawn(for: app.bundleID, pid: pid)
+        return pid
+    }
+
+    func newWindow(pid: Int32) async -> Bool {
+        journal.add("newwin \(pid)")
+        guard let bundle = names.withLock({ $0[pid] }), spawns.withLock({ $0[bundle] }) != nil else { return false }
+        spawn(for: bundle, pid: pid)
+        return true
+    }
+
+    func quit(pid: Int32) async {
+        journal.add("quit \(pid)")
+        guard let bundle = names.withLock({ $0[pid] }) else { return }
+        switch quits.withLock({ $0[bundle] }) ?? .exits {
+        case .exits: exit(pid)
+        case .asksToSave(let id): windows.askToSave(WindowKey(pid: pid, id: id))
+        case .stalls: break
+        }
+    }
+
+    func forceQuit(pid: Int32) async {
+        journal.add("force \(pid)")
+        exit(pid)
+    }
+
+    func isRunning(pid: Int32) async -> Bool { names.withLock { $0[pid] } != nil }
+
+    private func exit(_ pid: Int32) {
+        guard let bundle = names.withLock({ $0.removeValue(forKey: pid) }) else { return }
+        running.withLock { $0[bundle] = nil }
+        windows.closeAll(of: pid)
     }
 }
 

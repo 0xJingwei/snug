@@ -95,6 +95,10 @@ public final class PhoneDisplayService: PhoneDisplays {
         return area
     }
 
+    public func mainArea() -> CGRect? {
+        (NSScreen.screens.first { $0.frame.origin == .zero }).map { Screens.axRect(fromAppKit: $0.visibleFrame) }
+    }
+
     // MARK: 内部
 
     private func make(serial: UInt32) -> CGVirtualDisplay? {

@@ -22,12 +22,15 @@ public struct WindowInfo: Equatable, Identifiable, Sendable {
     public let app: String
     public let bundleID: String?
     public let title: String
+    /// 列表上标「已最小化」
+    public let minimized: Bool
 
-    public init(key: WindowKey, app: String, bundleID: String?, title: String) {
+    public init(key: WindowKey, app: String, bundleID: String?, title: String, minimized: Bool = false) {
         self.key = key
         self.app = app
         self.bundleID = bundleID
         self.title = title
+        self.minimized = minimized
     }
 
     public var id: WindowKey { key }

@@ -122,6 +122,27 @@ public final class WindowService: WindowControl {
         }
     }
 
+    public func shownWindows(of pid: Int32) async -> [WindowInfo] {
+        let shown = Set(Self.onScreen().filter { $0.pid == pid }.map(\.id))
+        guard !shown.isEmpty, let app = Self.app(pid) else { return [] }
+        return await run {
+            (AX.respondingWindows(pid: pid) ?? []).compactMap { element in
+                guard AX.isStandard(element), let id = AX.windowID(element), shown.contains(id) else { return nil }
+                return Self.info(element, key: WindowKey(pid: pid, id: id), of: app)
+            }
+        }
+    }
+
+    public func windowAskingToSave(of pid: Int32) async -> WindowInfo? {
+        guard let app = Self.app(pid) else { return nil }
+        return await run {
+            for element in AX.respondingWindows(pid: pid) ?? [] where AX.hasSheet(element) {
+                if let id = AX.windowID(element) { return Self.info(element, key: WindowKey(pid: pid, id: id), of: app) }
+            }
+            return nil
+        }
+    }
+
     // MARK: 窗口列表（手机屏上的卡片）
 
     /// 所有可以放上手机屏的窗口：不管在哪块屏、哪个桌面空间，全屏、最小化的也算。最近用过的在前
@@ -222,6 +243,27 @@ public final class WindowService: WindowControl {
             NSWorkspace.shared.runningApplications
                 .filter { $0.activationPolicy == .regular && $0 != NSRunningApplication.current }
                 .map { App(pid: $0.processIdentifier, name: $0.localizedName ?? "未命名", bundleID: $0.bundleIdentifier) }
+        }
+    }
+
+    /// 进程号对应的 App（名字和资源库里的一致）
+    private static func app(_ pid: Int32) -> AppInfo? {
+        NSRunningApplication(processIdentifier: pid).flatMap(AppService.info)
+    }
+
+    private static func info(_ element: AXUIElement, key: WindowKey, of app: AppInfo) -> WindowInfo {
+        WindowInfo(key: key, app: app.name, bundleID: app.bundleID,
+                   title: WindowInfo.visibleTitle(AX.string(element, kAXTitleAttribute) ?? ""),
+                   minimized: AX.flag(element, kAXMinimizedAttribute))
+    }
+
+    /// 窗口服务器里此刻在屏上的窗口（进程号、编号）：被最小化、隐藏、关成了隐藏的都不在
+    private static func onScreen() -> [(pid: Int32, id: UInt32)] {
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        return (list ?? []).compactMap { info in
+            guard let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { return nil }
+            return (pid, id)
         }
     }
 

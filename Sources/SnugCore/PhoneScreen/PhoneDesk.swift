@@ -1,5 +1,7 @@
-// 手机屏的调度中枢：什么时候加屏、撤屏，窗口怎么放上来、放回去，字号怎么改，手机屏用哪一档。
+// 手机屏的调度中枢：什么时候加屏、撤屏，窗口怎么放上来、放回去，字号怎么改，手机屏用哪一档；
+// App 资源库的动作也在这里：打开 App、新建窗口时等新窗口出来再放，退出 App 前先还原它放上来的窗口。
 // 所有动作排成一队依次做（加屏要等上线、搬窗口要核对重试，中间不能被别的动作插进来）。
+// 退出 App 例外：请它退出之后不占着队等它退完（Electron 类 App 要五六秒），另起一个盯着，期间别的动作照做。
 // 屏幕适配（ScreenFit）：手机屏的宽度跟着屏上显示的东西走，露着列表是基准宽度，放着窗口是那个窗口要的一档。
 // 隔离：只动手机屏和放上来的那一个窗口；加屏、撤屏被系统挪动的其它窗口放回原处；
 // 每一处改动先记账再动手，还原成功、或窗口确实没了才销账。没销的账（Snug 崩溃、App 卡住没放成）
@@ -27,6 +29,8 @@ public final class PhoneDesk {
         public var work: Work?
         /// 要让用户知道的事，下一个动作开始时、或这次远程结束时清掉
         public var notice: Notice?
+        /// 已经请它退出、还在等它退完的 App（进程号）
+        public var quitting: Set<Int32> = []
 
         public init() {}
 
@@ -45,6 +49,14 @@ public final class PhoneDesk {
         case recordUnwritable
         /// 手机屏还没好（屏幕组合还在变）
         case screenNotReady
+        /// App 打不开（启动失败）
+        case openFailed(app: String)
+        /// App 菜单里没有快捷键为 ⌘N 的项，或 App 没响应
+        case noNewWindow(app: String)
+        /// 打开了，但等满了也没有可显示的窗口（收进菜单栏的 App 常这样）
+        case noWindow(app: String)
+        /// 请它退出了，等满了还没退，也没有对话框：可以强制退出
+        case quitStalled(app: String, pid: Int32)
     }
 
     public struct Placed: Equatable, Sendable {
@@ -60,6 +72,8 @@ public final class PhoneDesk {
     }
 
     public enum Work: Equatable, Sendable {
+        /// 正在打开这个 App（启动、唤回或新建窗口），等新窗口出来；出来了转成 placing
+        case opening(AppInfo)
         /// 正在把这个窗口放上来（换窗口时含放回原来那个），窗口挪好就转成 zooming
         case placing(WindowInfo)
         case puttingBack
@@ -72,6 +86,14 @@ public final class PhoneDesk {
     static let settleDelay: TimeInterval = 0.3
     /// 加屏失败后隔多久重试；这几次都不成就不再试，直到不要了再要
     static let retryDelays: [TimeInterval] = [5, 15, 30]
+    /// 等新窗口出来时隔多久问一次（实测一次不到 1 毫秒）
+    static let windowPoll: TimeInterval = 0.1
+    /// 冷启动最多等多久出窗口（实测 ChatGPT 6.6 秒，更重的 App 更慢）；唤回、新建窗口实测都在 0.3 秒内，等 10 秒
+    static let launchWait: TimeInterval = 30
+    static let windowWait: TimeInterval = 10
+    /// 请 App 退出后隔多久看一次、最多等多久才给强制退出（实测 Electron 类 App 退出要五六秒）
+    static let quitPoll: TimeInterval = 0.25
+    static let quitWait: TimeInterval = 10
 
     public private(set) var state = State() {
         didSet { if state != oldValue { onChange?(state) } }
@@ -84,6 +106,7 @@ public final class PhoneDesk {
 
     private let displays: any PhoneDisplays
     private let windows: any WindowControl
+    private let apps: any AppControl
     private let timeline: any Timeline
     private let ledger: RestoreRecord<PhoneRecord>
     private let zoomFile: JSONFile<ZoomBook>
@@ -100,11 +123,14 @@ public final class PhoneDesk {
     private var failures = 0
     private var pendingRetry: Task<Void, Never>?
     private var verifying = false
+    /// 盯着退出的 App（进程号 → 盯着它的任务）
+    private var quitWatches: [Int32: Task<Void, Never>] = [:]
 
-    public init(displays: any PhoneDisplays, windows: any WindowControl, timeline: any Timeline = SystemTimeline(),
-                paths: SnugPaths, defaultZoom: Int = 2) {
+    public init(displays: any PhoneDisplays, windows: any WindowControl, apps: any AppControl,
+                timeline: any Timeline = SystemTimeline(), paths: SnugPaths, defaultZoom: Int = 2) {
         self.displays = displays
         self.windows = windows
+        self.apps = apps
         self.timeline = timeline
         self.defaultZoom = defaultZoom
         ledger = RestoreRecord(url: paths.phoneRecord)
@@ -130,6 +156,57 @@ public final class PhoneDesk {
             self.state.work = nil
         }
     }
+
+    /// 打开 App，等它的新窗口出来放上手机屏：没在跑就启动，在跑但没窗口就唤回（点在跑且有窗口的 App 是 pull，见 AppList.action）
+    public func open(_ app: AppInfo) {
+        begin(.opening(app))
+        lane.run {
+            await self.openWindow(of: app, newWindowIn: nil)
+            self.state.work = nil
+        }
+    }
+
+    /// 给在跑的 App 新建一个窗口（菜单里的 ⌘N），放上手机屏：从出现起就是手机宽度，终端不会因为尺寸剧变重排
+    public func newWindow(_ app: RunningApp) {
+        begin(.opening(app.app))
+        lane.run {
+            await self.openWindow(of: app.app, newWindowIn: app.pid)
+            self.state.work = nil
+        }
+    }
+
+    /// 退出 App（同 ⌘Q）。手机屏上放着它的窗口就先还原（App 退出时会记住窗口位置，不先放回下次就是手机屏那么窄），
+    /// 放不回去就不退。请它退出后另起一个盯着：退完了就好；弹出「要存储吗」就把那个窗口放上手机屏，在手机上就能选；
+    /// 等满了还没退、也没有对话框，提示可以强制退出
+    public func quit(_ app: RunningApp) {
+        guard !state.quitting.contains(app.pid) else { return }
+        state.notice = nil
+        state.quitting.insert(app.pid)
+        lane.run {
+            if let p = self.placement, p.window.key.pid == app.pid {
+                guard await self.returnToOriginal(p) else {
+                    Log.warn("\(p.window.label) 放不回去，先不退出 \(app.app.name)")
+                    self.state.quitting.remove(app.pid)
+                    self.state.notice = .windowUnresponsive(app: p.window.app)
+                    return
+                }
+                await self.matchWidth()
+            }
+            Log.info("请 \(app.app.name) 退出")
+            await self.apps.quit(pid: app.pid)
+            self.watchQuit(app)
+        }
+    }
+
+    /// 强制退出（提示里的按钮）：未存储的内容会丢
+    public func forceQuit(pid: Int32, app: String) {
+        state.notice = nil
+        Log.warn("强制退出 \(app)（pid \(pid)）")
+        lane.run { await self.apps.forceQuit(pid: pid) }
+    }
+
+    /// 关掉提示（「稍后」）
+    public func dismissNotice() { state.notice = nil }
 
     /// 底部小横条：回到窗口列表（马上露出来），手机屏换回基准宽度。
     /// 提示留着：列表收着时出的错（比如调字号没成），这时才看得到
@@ -232,15 +309,16 @@ public final class PhoneDesk {
         await lane.run { await self.reconcile() }.value
     }
 
-    /// 等排着的动作都做完，包括还没到点的重试（测试用：真实时钟下最长要等 30 秒的重试）
+    /// 等排着的动作都做完，包括还没到点的重试和盯着退出的 App（测试用：真实时钟下最长要等 30 秒的重试）
     func idle() async {
         var retry: Task<Void, Never>?
         repeat {
             retry = pendingRetry
             await pendingRecheck?.value
             await retry?.value
+            for watch in quitWatches.values { await watch.value }
             await lane.drain()
-        } while pendingRetry != retry
+        } while pendingRetry != retry || !quitWatches.isEmpty
     }
 
     // MARK: 加屏、撤屏
@@ -302,8 +380,11 @@ public final class PhoneDesk {
         await retireDisplay()
         state.screen = .off
         state.listVisible = true
-        // 这次远程的提示不带到下一次
+        // 这次远程的提示、没盯完的退出不带到下一次（App 照样在退，只是不再盯）
         state.notice = nil
+        quitWatches.values.forEach { $0.cancel() }
+        quitWatches = [:]
+        state.quitting = []
     }
 
     private func retireDisplay() async {
@@ -413,7 +494,7 @@ public final class PhoneDesk {
         guard let look = await reach(window) else { return }
         // 先记账再动手。全屏的窗口这时读到的是全屏的位置，崩溃后按它放回再恢复全屏也对
         var next = Placement(window: window, record: PhoneRecord(
-            window: window.key, app: window.app, label: window.label, original: look.frame,
+            window: window.key, app: window.app, label: window.label, original: homed(look.frame, besides: id),
             wasFullScreen: look.fullScreen, wasMinimized: look.minimized))
         guard write(next.record) else {
             state.notice = .recordUnwritable
@@ -424,7 +505,7 @@ public final class PhoneDesk {
             await windows.setFullScreen(window.key, false)
             // 退出全屏后的位置才是它平时的位置：放回时回到这里再进全屏
             if let windowed = await windows.look(window.key)?.frame {
-                next.record.original = windowed
+                next.record.original = homed(windowed, besides: id)
                 write(next.record)
             }
         }
@@ -454,6 +535,91 @@ public final class PhoneDesk {
         state.work = .zooming
         await timeline.sleep(Self.settleDelay)
         await changeZoom(by: steps)
+    }
+
+    /// 原位：落在手机屏上的（App 按上次记住的位置把窗口开在了手机屏上）改成主屏居中，屏一撤那个位置就不存在了
+    private func homed(_ frame: CGRect, besides id: DisplayID) -> CGRect {
+        guard let phone = displays.bounds(id), phone.contains(CGPoint(x: frame.midX, y: frame.midY)),
+              let main = displays.mainArea() else { return frame }
+        let size = CGSize(width: min(frame.width, main.width), height: min(frame.height, main.height))
+        return CGRect(x: (main.midX - size.width / 2).rounded(), y: (main.midY - size.height / 2).rounded(),
+                      width: size.width, height: size.height)
+    }
+
+    // MARK: 打开、退出 App
+
+    /// 打开 App（newWindowIn 给了就是给这个进程新建窗口），等它此刻在屏上、之前不在屏上的标准窗口出来，放上手机屏。
+    /// 认「之前不在屏上」而不认新编号：唤回时 App 常常重新显示原来那个窗口，编号不变
+    private func openWindow(of app: AppInfo, newWindowIn running: Int32?) async {
+        let started = timeline.now
+        guard readyDisplay(for: "打开 \(app.name)") != nil else {
+            state.notice = .screenNotReady
+            return
+        }
+        let known = await apps.pid(of: app)
+        var before: Set<WindowKey> = []
+        if let known { before = Set(await windows.shownWindows(of: known).map(\.key)) }
+        let pid: Int32
+        if let running {
+            guard await apps.newWindow(pid: running) else {
+                Log.warn("\(app.name) 菜单里没有 ⌘N（或没响应），没法新建窗口")
+                state.notice = .noNewWindow(app: app.name)
+                return
+            }
+            pid = running
+        } else {
+            guard let opened = await apps.open(app) else {
+                Log.warn("打不开 \(app.name)（\(app.path ?? app.bundleID)）")
+                state.notice = .openFailed(app: app.name)
+                return
+            }
+            pid = opened
+        }
+        let wait = known == nil ? Self.launchWait : Self.windowWait
+        guard let window = await awaitWindow(of: pid, besides: before, within: wait) else {
+            Log.warn("\(app.name) 打开了，但 \(Int(wait))s 内没有可显示的窗口")
+            state.notice = .noWindow(app: app.name)
+            return
+        }
+        let how = running != nil ? "新建窗口" : known == nil ? "启动" : "唤回"
+        Log.info("\(app.name) \(how)后 \(String(format: "%.1f", timeline.now - started))s 出现 \(window.label)，放上手机屏")
+        state.work = .placing(window)
+        await place(window)
+    }
+
+    private func awaitWindow(of pid: Int32, besides known: Set<WindowKey>, within seconds: TimeInterval) async -> WindowInfo? {
+        let deadline = timeline.now + seconds
+        while true {
+            if let window = await windows.shownWindows(of: pid).first(where: { !known.contains($0.key) }) { return window }
+            guard timeline.now < deadline else { return nil }
+            await timeline.sleep(Self.windowPoll)
+        }
+    }
+
+    /// 盯着请它退出的 App：退完了、弹出了对话框、或等满了，三者之一就停
+    private func watchQuit(_ app: RunningApp) {
+        quitWatches[app.pid] = Task {
+            defer {
+                quitWatches[app.pid] = nil
+                state.quitting.remove(app.pid)
+            }
+            let deadline = timeline.now + Self.quitWait
+            while timeline.now < deadline {
+                guard !Task.isCancelled else { return }
+                guard await apps.isRunning(pid: app.pid) else {
+                    Log.info("\(app.app.name) 已退出")
+                    return
+                }
+                if let asking = await windows.windowAskingToSave(of: app.pid) {
+                    Log.info("\(app.app.name) 在问是否存储，把 \(asking.label) 放上手机屏")
+                    pull(asking)
+                    return
+                }
+                await timeline.sleep(Self.quitPoll)
+            }
+            Log.warn("\(app.app.name) 请它退出 \(Int(Self.quitWait))s 后还在，也没有对话框")
+            state.notice = .quitStalled(app: app.app.name, pid: app.pid)
+        }
     }
 
     /// 放回原位、回到窗口列表，返回放回去了没有。

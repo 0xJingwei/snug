@@ -15,6 +15,7 @@ final class AppController {
     let updater: Updater
     let desk: PhoneDesk
     let windows = WindowService()
+    let apps = AppService()
     /// 用户从菜单或设置里点「退出」（由 AppDelegate 接到退出流程上）
     var onQuitRequested: (() -> Void)?
 
@@ -35,7 +36,7 @@ final class AppController {
         self.previewPhone = previewPhone
         store = ConfigStore(url: paths.config)
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
-        desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, paths: paths,
+        desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
                          defaultZoom: store.config.zoomSteps)
         state.config = store.config
         state.accessibilityTrusted = AX.isTrusted

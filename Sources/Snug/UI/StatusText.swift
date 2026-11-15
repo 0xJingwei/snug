@@ -65,6 +65,10 @@ extension PhoneDesk.Notice {
         case .windowUnresponsive(let app): StatusText(headline: "\(app) 无响应", detail: "可能正忙，请稍后再试")
         case .recordUnwritable: StatusText(headline: "无法保存原位置", detail: "为确保能放回原处，窗口未移动")
         case .screenNotReady: StatusText(headline: "手机屏未就绪", detail: "屏幕正在调整，请稍后再试")
+        case .openFailed(let app): StatusText(headline: "无法打开 \(app)", detail: "请稍后再试")
+        case .noNewWindow(let app): StatusText(headline: "\(app) 无法新建窗口", detail: "可点 App 打开已有窗口")
+        case .noWindow(let app): StatusText(headline: "未找到 \(app) 的窗口", detail: "App 已打开，但没有可显示的窗口")
+        case .quitStalled(let app, _): StatusText(headline: "\(app) 未退出", detail: "强制退出将丢失未存储的内容")
         }
     }
 }

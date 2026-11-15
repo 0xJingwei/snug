@@ -41,6 +41,30 @@ public enum AX {
     /// 标准窗口（不含面板、对话框）
     static func isStandard(_ element: AXUIElement) -> Bool { string(element, kAXSubroleAttribute) == kAXStandardWindowSubrole }
 
+    /// 窗口上挂着对话框（退出时的「要存储吗」就挂在文档窗口上）
+    static func hasSheet(_ window: AXUIElement) -> Bool {
+        ((attribute(window, kAXChildrenAttribute) as? [AXUIElement]) ?? []).contains { string($0, kAXRoleAttribute) == kAXSheetRole }
+    }
+
+    /// 菜单栏里快捷键是 ⌘ + key（不带别的修饰键）的菜单项。只看各个菜单的第一层：「新建窗口」这类都在第一层，
+    /// 不往子菜单里钻（大 App 的菜单有上千项）。跳过苹果菜单
+    static func menuItem(pid: pid_t, commandKey key: String) -> AXUIElement? {
+        guard let bar = attribute(application(pid), kAXMenuBarAttribute), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return nil }
+        let menus = ((attribute(bar as! AXUIElement, kAXChildrenAttribute) as? [AXUIElement]) ?? []).dropFirst()
+        for menu in menus.compactMap({ (attribute($0, kAXChildrenAttribute) as? [AXUIElement])?.first }) {
+            for item in (attribute(menu, kAXChildrenAttribute) as? [AXUIElement]) ?? []
+            where string(item, kAXMenuItemCmdCharAttribute)?.uppercased() == key.uppercased()
+                && (attribute(item, kAXMenuItemCmdModifiersAttribute) as? Int) == 0 {
+                return item
+            }
+        }
+        return nil
+    }
+
+    static func press(_ element: AXUIElement) -> Bool {
+        AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+    }
+
     /// 提到最前并设成 App 的当前窗口：激活、发字号按键都要先做这一步（按键由 App 交给它的当前窗口）
     static func raise(_ element: AXUIElement) {
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
