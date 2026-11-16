@@ -1,5 +1,5 @@
-// 手势翻译和 CGEvent 之间的格式：UU 发来的鼠标左键读成 TouchInput，TouchCommand 拼成要补发的事件。
-// 只做格式转换、不带状态，监听线程和状态机在 TouchTap。加一种手势时，要补发的新事件在这里拼。
+// 手势翻译和 CGEvent 之间的读写：接管哪几种事件、事件类型对应 TouchInput 的哪一种、拼要补发的事件、打上记号发出去；
+// UUEventSource 认哪些事件是 UURemoteServer 注入的。监听线程、状态机和按 TouchCommand 分派在 TouchTap。
 // 补发的事件打上记号：拷贝出来的事件保留 UU 的进程号，不打记号会被自己再接管一次，来回打转
 import CoreGraphics
 import Darwin

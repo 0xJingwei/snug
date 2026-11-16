@@ -74,7 +74,7 @@ App 将本机已安装的 Snug 按同样方式切块，只按字节范围从最�
 
 发布工具 `SnugRelease` 只依赖 `SnugCore`，由 `scripts/snug` 调用。
 
-手势翻译分两半：`SnugCore/Touch` 是纯状态机，只认一块范围 `TouchRegion`（位置与缩放倍数），不依赖手机屏；`SnugSystem` 中 `TouchTap` 负责监听线程，`TouchEvents` 负责读入与拼装事件。`AppController` 只决定范围：手机屏在且开着手势时为手机屏，否则关闭。新增一种手势时，在状态机里加判定与 `TouchCommand`，在 `TouchEvents` 里拼装要补发的事件。
+手势翻译分两半：`SnugCore/Touch` 是纯状态机，只认一块范围 `TouchRegion`（位置与缩放倍数），不依赖手机屏；`SnugSystem` 中 `TouchTap` 负责监听线程，`TouchEvents` 负责读入与拼装事件。`AppController` 只决定范围：手机屏在且开着手势时为手机屏，否则关闭。新增一种手势时，在状态机里加判定与 `TouchCommand`，在 `TouchEvents` 里拼装要补发的事件，再在 `TouchTap` 按命令分派处补上一支。
 
 ## 启动参数
 
