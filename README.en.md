@@ -87,6 +87,7 @@ The home page of the phone screen (「App 资源库」), for managing your Mac's
 | Close a window | Tap the close button next to the window, then tap again to confirm |
 | Quit an app | Tap "Quit" on the app's card, then tap again to confirm; if it hasn't quit after 10 seconds, you can force quit it |
 | Save unsaved changes | The save prompt that appears when closing or quitting shows up on the phone screen, so you can answer it there |
+| Exit the phone screen | Tap "Exit Phone Screen" at the top right, then tap again to confirm; windows return to where they were and the phone screen is removed for the rest of this session. It comes back next session |
 
 ## 📐 Fits Every App and Phone
 
@@ -185,6 +186,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 | Portrait only | A tablet held in landscape gets the standard UU Remote experience; landscape support for tablets is planned |
 | Not an official NetEase product | Unaffiliated with UU Remote or its developer; UU Remote updates may affect some features |
 | The phone screen may occasionally remain after a session ends | Occurs when the system log misses the end of the stream; the menu bar still shows the session as active (「远程中」). Turn off the phone screen in Settings to restore |
+| On a Mac with no display attached, you can't switch back to the original screen | macOS provides a default screen only when no display is connected, and removes it as soon as the phone screen appears. Exit the phone screen from the top right of the app library to get the original screen back |
 
 The technical reasons behind each limitation are explained in [How It Works](docs/how-it-works.md#已知限制的技术原因) (in Chinese).
 
