@@ -144,6 +144,44 @@ private final class DesktopRig {
 @Suite("桌面屏调度 DesktopDesk")
 @MainActor
 struct DesktopDeskTests {
+    @Test("聚拢只入队尚未登记窗口时断开：旧聚拢失效，归位仍然排队")
+    func disconnectBeforeQueuedGatherStarts() async throws {
+        let rig = try DesktopRig()
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        rig.desk.setContext(streaming: true)
+        rig.desk.restoreForDisconnect()
+        rig.desk.setContext(streaming: true)
+        await rig.desk.idle()
+        #expect(!rig.desk.state.gathered)
+        #expect(rig.record == nil)
+        #expect(rig.windows.window(rig.codeWin.key)?.frame == rig.codeOrigin)
+        rig.desk.setConnectionActive(true)
+        rig.desk.setContext(streaming: false)
+        rig.desk.setContext(streaming: true)
+        await rig.desk.idle()
+        #expect(rig.desk.state.gathered)
+    }
+
+    @Test("桌面归位返回错误坐标时保留账本，解除移动限制后可以恢复")
+    func wrongPositionRetainsDesktopLedger() async throws {
+        let rig = try DesktopRig()
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        rig.desk.setContext(streaming: true)
+        await rig.desk.idle()
+        rig.windows.ignoreMoves()
+        rig.desk.setWanted(false)
+        await rig.desk.idle()
+        #expect(rig.record != nil)
+        #expect(rig.desk.state.gatheredCount > 0)
+        rig.windows.ignoreMoves(false)
+        rig.desk.restoreWindows()
+        await rig.desk.idle()
+        #expect(rig.record == nil)
+        #expect(rig.windows.window(rig.codeWin.key)?.frame == rig.codeOrigin)
+    }
+
     @Test("手动还原后停留在桌面屏不会重新聚拢，切走再切回来才聚拢")
     func manualRestoreWaitsForActualScreenSwitch() async throws {
         let rig = try DesktopRig()

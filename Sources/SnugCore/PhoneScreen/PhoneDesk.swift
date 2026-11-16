@@ -158,9 +158,12 @@ public final class PhoneDesk {
     private var zoomBook: ZoomBook
     private let leftBehindFile: JSONFile<LeftBehindBook>
     private var leftBehind: LeftBehindBook
-    private let lane = SerialLane()
+    private let lane: SerialLane
 
     private var wanted = false
+    private var connectionActive = true
+    private var placementGeneration = 0
+    private var automaticPlacementAllowed = true
     /// 远程在不在进行（会话层的结论，含断开后等重连的那段）：这期间别的屏可能处在远程用的临时模式
     private var remote = false
     private var display: (id: DisplayID, bornAt: TimeInterval)?
@@ -194,7 +197,8 @@ public final class PhoneDesk {
 
     public init(displays: any PhoneDisplays, windows: any WindowControl, apps: any AppControl,
                 timeline: any Timeline = SystemTimeline(), paths: SnugPaths, defaultZoom: Int = 2,
-                fit: ScreenFit = .standard) {
+                fit: ScreenFit = .standard, lane: SerialLane = SerialLane()) {
+        self.lane = lane
         self.displays = displays
         self.windows = windows
         self.apps = apps
@@ -240,8 +244,12 @@ public final class PhoneDesk {
     /// 把这个窗口放上手机屏（原来那个先放回原位）。正在退出的 App 的窗口不放：它退完会记住手机屏上那个窄位置
     public func pull(_ window: WindowInfo) {
         guard !state.quitting.contains(window.key.pid) else { return Log.info("\(window.app) 正在退出，不放 \(window.label)") }
+        guard connectionActive else { return }
+        automaticPlacementAllowed = true
+        let generation = placementGeneration
         begin(.placing(window))
         lane.run {
+            guard self.connectionActive, generation == self.placementGeneration else { return }
             await self.place(window)
             self.state.work = nil
         }
@@ -249,8 +257,12 @@ public final class PhoneDesk {
 
     /// 打开 App，等它的新窗口出来放上手机屏：没在跑就启动，在跑但没窗口就唤回（点在跑且有窗口的 App 是 pull，见 AppList.action）
     public func open(_ app: AppInfo) {
+        guard connectionActive else { return }
+        automaticPlacementAllowed = true
+        let generation = placementGeneration
         begin(.opening(app))
         lane.run {
+            guard self.connectionActive, generation == self.placementGeneration else { return }
             await self.openWindow(of: app, newWindowIn: nil)
             self.state.work = nil
         }
@@ -259,8 +271,12 @@ public final class PhoneDesk {
     /// 给在跑的 App 新建一个窗口（菜单里的 ⌘N），放上手机屏：从出现起就是手机宽度，终端不会因为尺寸剧变重排
     public func newWindow(_ app: RunningApp) {
         guard !state.quitting.contains(app.pid) else { return Log.info("\(app.app.name) 正在退出，不新建窗口") }
+        guard connectionActive else { return }
+        automaticPlacementAllowed = true
+        let generation = placementGeneration
         begin(.opening(app.app))
         lane.run {
+            guard self.connectionActive, generation == self.placementGeneration else { return }
             await self.openWindow(of: app.app, newWindowIn: app.pid)
             self.state.work = nil
         }
@@ -271,9 +287,12 @@ public final class PhoneDesk {
     /// 等满了还没退、也没有对话框，提示可以强制退出
     public func quit(_ app: RunningApp) {
         guard !state.quitting.contains(app.pid) else { return }
+        guard connectionActive else { return }
+        let generation = placementGeneration
         state.notice = nil
         state.quitting.insert(app.pid)
         lane.run {
+            guard self.connectionActive, generation == self.placementGeneration else { return }
             if let p = self.placement, p.window.key.pid == app.pid {
                 guard await self.returnToOriginal(p) else {
                     Log.warn("\(p.window.label) 放不回去，先不退出 \(app.app.name)")
@@ -289,7 +308,7 @@ public final class PhoneDesk {
                 self.state.notice = .windowUnresponsive(app: app.app.name)
                 return
             }
-            self.watchQuit(app)
+            self.watchQuit(app, generation: generation)
         }
     }
 
@@ -309,9 +328,12 @@ public final class PhoneDesk {
     /// 关掉了就好；问「要存储吗」或「还有进程在跑」就把它放上手机屏；等满了还在、也没在问，提示无响应
     public func close(_ window: WindowInfo) {
         guard watches[.close(window.key)] == nil else { return }
+        guard connectionActive else { return }
+        let generation = placementGeneration
         state.notice = nil
         state.closing.insert(window.key)
         lane.run {
+            guard self.connectionActive, generation == self.placementGeneration else { return }
             if let p = self.placement, p.window.key == window.key {
                 guard await self.returnToOriginal(p, restoringState: false) else {
                     Log.warn("\(p.window.label) 放不回去，先不关")
@@ -332,7 +354,7 @@ public final class PhoneDesk {
                 return
             }
             Log.info("关闭 \(window.label)")
-            self.watchClose(window, hides: wasShown)
+            self.watchClose(window, hides: wasShown, generation: generation)
         }
     }
 
@@ -376,6 +398,30 @@ public final class PhoneDesk {
                 self.state.notice = .windowUnresponsive(app: p.window.app)
             }
             await self.matchWidth()
+            self.state.work = nil
+        }
+    }
+
+    /// 连接已确认断开时先还窗口，虚拟屏仍按会话的重连宽限期保留。
+    /// 总是排队，保证断开时还在执行的放窗动作结束后也会归位。
+    public func setConnectionActive(_ active: Bool) { connectionActive = active }
+
+    public func restoreForDisconnect() {
+        connectionActive = false
+        placementGeneration += 1
+        automaticPlacementAllowed = false
+        replaced = nil
+        state.work = nil
+        watches.values.forEach { $0.cancel() }
+        watches = [:]
+        state.quitting = []
+        state.closing = []
+        lane.run {
+            guard let p = self.placement else { return }
+            self.state.work = .puttingBack
+            if await !self.returnToOriginal(p) {
+                self.state.notice = .windowUnresponsive(app: p.window.app)
+            }
             self.state.work = nil
         }
     }
@@ -854,7 +900,9 @@ public final class PhoneDesk {
     /// 打开 App（newWindowIn 给了就是给这个进程新建窗口），等它此刻在屏上、之前不在屏上的标准窗口出来，放上手机屏。
     /// 认「之前不在屏上」而不认新编号：唤回时 App 常常重新显示原来那个窗口，编号不变
     private func openWindow(of app: AppInfo, newWindowIn running: Int32?) async {
+        let generation = placementGeneration
         let started = timeline.now
+        guard connectionActive else { return }
         guard readyDisplay(for: "打开 \(app.name)") != nil else {
             state.notice = .screenNotReady
             return
@@ -880,8 +928,9 @@ public final class PhoneDesk {
             pid = opened
         }
         let wait = known == nil ? Self.launchWait : Self.windowWait
-        switch await awaitWindow(of: pid, excluding: before, within: wait) {
+        switch await awaitWindow(of: pid, excluding: before, within: wait, generation: generation) {
         case .appeared(let window):
+            guard connectionActive, generation == placementGeneration else { return }
             let how = running != nil ? "新建窗口" : known == nil ? "启动" : "唤回"
             Log.info("\(app.name) \(how)后 \(String(format: "%.1f", timeline.now - started))s 出现 \(window.label)，放上手机屏")
             state.work = .placing(window)
@@ -906,9 +955,9 @@ public final class PhoneDesk {
         case abandoned
     }
 
-    private func awaitWindow(of pid: Int32, excluding known: Set<WindowKey>, within seconds: TimeInterval) async -> Awaited {
+    private func awaitWindow(of pid: Int32, excluding known: Set<WindowKey>, within seconds: TimeInterval, generation: Int) async -> Awaited {
         let deadline = timeline.now + seconds
-        while wanted {
+        while wanted, connectionActive, generation == placementGeneration {
             if let window = await windows.shownWindows(of: pid).first(where: { !known.contains($0.key) }) { return .appeared(window) }
             guard await apps.isRunning(pid: pid) else { return .appQuit }
             guard timeline.now < deadline else { return .timedOut }
@@ -919,9 +968,10 @@ public final class PhoneDesk {
 
     /// 盯着请它退出的 App：退完了就好；在问就放上手机屏等人答，答了取消就不再盯；
     /// 等满了还没退、也没在问，提示可以强制退出，之后再低频看一阵：它自己退了，提示就撤掉
-    private func watchQuit(_ app: RunningApp) {
+    private func watchQuit(_ app: RunningApp, generation: Int) {
+        guard connectionActive, generation == placementGeneration else { return }
         watch(.quit(app.pid)) {
-            defer { self.state.quitting.remove(app.pid) }
+            defer { if generation == self.placementGeneration { self.state.quitting.remove(app.pid) } }
             let answer = await self.awaitAnswer(from: app.pid, within: Self.quitWait, done: { await !self.apps.isRunning(pid: app.pid) })
             guard !Task.isCancelled else { return }
             switch answer {
@@ -948,9 +998,10 @@ public final class PhoneDesk {
 
     /// 盯着请它关掉的窗口，同退出；等满了还在、也没在问，提示无响应。
     /// hides：按关闭前它在屏上，那么不在屏上了（飞书、微信关成了隐藏）也算关上
-    private func watchClose(_ window: WindowInfo, hides: Bool) {
+    private func watchClose(_ window: WindowInfo, hides: Bool, generation: Int) {
+        guard connectionActive, generation == placementGeneration else { return }
         watch(.close(window.key)) {
-            defer { self.state.closing.remove(window.key) }
+            defer { if generation == self.placementGeneration { self.state.closing.remove(window.key) } }
             let answer = await self.awaitAnswer(from: window.key.pid, within: Self.closeWait) {
                 guard await self.windows.exists(window.key) else { return true }
                 guard hides else { return false }
@@ -1017,8 +1068,10 @@ public final class PhoneDesk {
 
     /// 排进队里再放，状态也轮到它时才改：不然会被前面那个动作结束时的 work = nil 冲掉
     private func placeAsking(_ window: WindowInfo) async {
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled, connectionActive else { return }
+        let generation = placementGeneration
         await lane.run {
+            guard self.connectionActive, generation == self.placementGeneration else { return }
             self.state.notice = nil
             self.state.work = .placing(window)
             await self.place(window, zoom: false)
@@ -1055,6 +1108,10 @@ public final class PhoneDesk {
         }
         guard let got = await windows.move(record.window, to: record.original) else {
             return await stuckOrGone(record, "挪不动")
+        }
+        guard got.matches(record.original) else {
+            Log.warn("\(record.label) 放回没对上，保留还原记录：目标 \(record.original.short)，实际 \(got.short)")
+            return record
         }
         if restoringState, record.wasFullScreen {
             await timeline.sleep(Self.settleDelay)
@@ -1150,6 +1207,7 @@ public final class PhoneDesk {
     /// 照放窗口的样子显示「正在打开」，做完只清自己设的状态（用户期间点的动作已经把状态换成了它的）
     @discardableResult
     private func placeOnItsOwn(_ window: WindowInfo) async -> Bool {
+        guard connectionActive, automaticPlacementAllowed else { return false }
         guard state.work == nil else { return false }
         state.notice = nil
         state.work = .placing(window)
@@ -1193,7 +1251,7 @@ public final class PhoneDesk {
     }
 
     private func takeBack(_ i: Int, window: WindowInfo, frame: CGRect) async {
-        if wanted, placement == nil, let id = display?.id,
+        if wanted, connectionActive, automaticPlacementAllowed, placement == nil, let id = display?.id,
            displays.bounds(id)?.contains(CGPoint(x: frame.midX, y: frame.midY)) == true {
             // 还在远程、回到了手机屏上：接着放（place 认得出这笔账，原位、字号接着用）
             await placeOnItsOwn(window)
@@ -1210,6 +1268,9 @@ public final class PhoneDesk {
         }
         guard let got = await windows.move(window.key, to: owed.original) else {
             return Log.warn("\(window.label) 带着手机屏上的样子回来了，但挪不动（App 没响应），下一拍再试")
+        }
+        guard got.matches(owed.original) else {
+            return Log.warn("\(window.label) 留下账归位没对上，保留账本供下次重试")
         }
         leftBehind.remove(at: i)
         saveLeftBehind()
@@ -1342,11 +1403,13 @@ private struct Placement {
 
 /// 一条队：动作按提交顺序一个做完再做下一个
 @MainActor
-final class SerialLane {
+public final class SerialLane {
     private var tail: Task<Void, Never>?
 
+    public init() {}
+
     @discardableResult
-    func run(_ operation: @escaping @MainActor @Sendable () async -> Void) -> Task<Void, Never> {
+    public func run(_ operation: @escaping @MainActor @Sendable () async -> Void) -> Task<Void, Never> {
         let previous = tail
         let task = Task { @MainActor in
             await previous?.value
@@ -1356,7 +1419,7 @@ final class SerialLane {
         return task
     }
 
-    func drain() async {
+    public func drain() async {
         while let current = tail {
             await current.value
             if tail == current { return }

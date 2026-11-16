@@ -36,7 +36,9 @@ enum UUAccessibility {
             guard role(window) == kAXWindowRole, !result.contains(where: { CFEqual($0, window) }) else { continue }
             result.append(window)
         }
-        return result
+        // 文件传输窗的历史列表可能有上千个节点，与本机控制端表无关。
+        // 必须在遍历前排除，否则正常读取也会因复制它整棵树而超时。
+        return result.filter { AX.string($0, kAXIdentifierAttribute) != "FileTransferWindow" }
     }
 
     private struct TooLarge: Error {}

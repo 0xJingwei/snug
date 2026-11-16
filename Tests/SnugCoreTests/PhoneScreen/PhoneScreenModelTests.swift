@@ -49,7 +49,7 @@ struct ControllerKindTests {
         #expect(!ControllerKind(name: "iQOO 15").wantsDesktopScreen)
     }
 
-    @Test("几台同时连着：有一台不是电脑就加手机屏，有一台是电脑就加桌面屏；一台都没读到时两块都兜底提供")
+    @Test("几台同时连着按设备分别提供；一台都没读到时只兜底手机屏")
     func several() {
         #expect(ControllerKind.wantsPhoneScreen(["markzhang的MacBook Pro", "iPhone 18 Pro"]))
         #expect(ControllerKind.wantsDesktopScreen(["markzhang的MacBook Pro", "iPhone 18 Pro"]))
@@ -59,7 +59,7 @@ struct ControllerKindTests {
         #expect(ControllerKind.wantsDesktopScreen(["MacBook Air", "DESKTOP-7Q2K1LM"]))
         #expect(!ControllerKind.wantsDesktopScreen(["iPhone 18 Pro", "iQOO 15"]))
         #expect(ControllerKind.wantsPhoneScreen([]))
-        #expect(ControllerKind.wantsDesktopScreen([]))
+        #expect(!ControllerKind.wantsDesktopScreen([]))
     }
 }
 

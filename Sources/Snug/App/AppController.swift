@@ -47,11 +47,13 @@ final class AppController {
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
         let windows = WindowService()
         let apps = AppService()
+        // 两种屏共享窗口与显示拓扑；从快照到恢复必须在同一条队列中完成。
+        let lane = SerialLane()
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
-                         defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: phone.screen))
+                         defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: phone.screen), lane: lane)
         desktopDisplays = DesktopDisplayService(helper: helper)
         desktopDesk = DesktopDesk(displays: desktopDisplays, windows: windows, paths: paths,
-                                  screen: desktop.screen)
+                                  screen: desktop.screen, lane: lane)
         catalog = AppCatalog(apps: apps, windows: windows)
         state.config = store.config
         state.phones = phones
@@ -145,9 +147,18 @@ final class AppController {
         let sample = sensor.sample(now: Date())
         let transitions = session.update(sample.signals, now: now)
         for t in transitions { Log.info("会话：\(Self.describe(t))") }
+        desk.setConnectionActive(session.isConnected)
+        desktopDesk.setConnectionActive(session.isConnected)
+        if transitions.contains(.interrupted) {
+            sensor.resetControllers()
+            Log.info("连接已断开，先还原窗口；虚拟屏继续保留重连宽限期")
+            desk.restoreForDisconnect()
+            desktopDesk.restoreForDisconnect()
+        }
         // 远程结束就是不要手机屏了。下一次在同一拍里开始时 wantsPhoneScreen 前后都是真，不先说一声「不要」，
         // 上一次在手机上退出的手机屏会带进这一次。同一拍里先「不要」再「要」不会撤屏重建（PhoneDesk 排队时读的是最新结论）
         if transitions.contains(.ended) {
+            sensor.resetControllers()
             desk.setWanted(false)
             desktopDesk.setWanted(false)
         }
@@ -180,7 +191,7 @@ final class AppController {
         return previewPhone || session.wantsPhoneScreen(now: now)
     }
 
-    /// 要不要桌面屏：开着总开关、有权限，这次远程的控制端里有电脑（或读不到控制端名字时兜底提供）
+    /// 要不要桌面屏：开着总开关、有权限，这次远程的控制端里明确有电脑
     var wantsDesktopScreen: Bool {
         guard store.config.desktopScreen, state.accessibilityTrusted else { return false }
         return previewDesktop || session.wantsDesktopScreen(now: now)

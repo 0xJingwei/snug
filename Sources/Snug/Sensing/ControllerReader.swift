@@ -9,16 +9,11 @@ import SnugSystem
 @MainActor
 final class ControllerReader {
     /// 一次读取超过这么久就不可信（UU 卡住时 AX 每次调用最多等 1 秒，一棵树要调很多次）
-    nonisolated static let maxReadDuration: TimeInterval = 2
-
-    private struct Box: Sendable {
-        var inFlightSince: TimeInterval?
-        var latest = ControllerTable.unreadable
-        var generation = 0
-    }
+    // 本机 UU 的完整界面树正常也要约 2.7 秒；仍在后台串行读，超过 5 秒的结果继续丢弃。
+    nonisolated static let maxReadDuration: TimeInterval = 5
 
     private let queue = DispatchQueue(label: "com.zephyr4123.snug.ax-reader", qos: .utility)
-    private let box = OSAllocatedUnfairLock(initialState: Box())
+    private let box = OSAllocatedUnfairLock(initialState: ControllerReadCache())
 
     /// 每拍调用：返回此刻可信的控制端表格，没有读取在跑就发起下一次
     func poll() -> ControllerTable {
@@ -27,14 +22,7 @@ final class ControllerReader {
             return .unreadable
         }
         let now = Self.uptime()
-        let (current, start, generation) = box.withLock { b -> (ControllerTable, Bool, Int) in
-            if let since = b.inFlightSince {
-                // 读取卡住超过上限：手上的结果已经说明不了现在
-                return (now - since > Self.maxReadDuration ? .unreadable : b.latest, false, b.generation)
-            }
-            b.inFlightSince = now
-            return (b.latest, true, b.generation)
-        }
+        let (current, start, generation) = box.withLock { $0.poll(now: now) }
         if start { read(pid: pid, generation: generation) }
         return current
     }
@@ -50,22 +38,12 @@ final class ControllerReader {
                 Log.warn(String(format: "读 UU 控制端表格用了 %.1fs，结果丢弃", took))
             }
             let table = tooSlow ? .unreadable : windows.map(ControllerTable.init(windows:)) ?? .unreadable
-            box.withLock { b in
-                guard b.generation == generation else { return }
-                b.inFlightSince = nil
-                b.latest = table
-            }
+            box.withLock { $0.finish(table, generation: generation, now: Self.uptime()) }
         }
     }
 
     /// 没授权或 UU 没在运行：清空，在途的读取结果作废
-    private func reset() {
-        box.withLock { b in
-            b.generation += 1
-            b.inFlightSince = nil
-            b.latest = .unreadable
-        }
-    }
+    func reset() { box.withLock { $0.invalidate() } }
 
     private nonisolated static func uptime() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
 }

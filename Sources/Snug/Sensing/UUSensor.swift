@@ -14,13 +14,22 @@ final class UUSensor {
     private let controllers = ControllerReader()
     private let captureLog = CaptureLogWatcher()
 
+    private var lastCapture: Bool?
+    private var lastOverlay = false
+
+    func resetControllers() { controllers.reset() }
+
     func start() { captureLog.start() }
     func stop() { captureLog.stop() }
 
     /// now 是墙钟：推流日志的时间戳是墙钟
     func sample(now: Date) -> UUSample {
         let capture = captureLog.sample(at: now)
-        return UUSample(signals: UUSignals(overlayVisible: UURemoteApp.overlayVisible(),
+        let overlay = UURemoteApp.overlayVisible()
+        if capture.active != lastCapture || overlay != lastOverlay { controllers.reset() }
+        lastCapture = capture.active
+        lastOverlay = overlay
+        return UUSample(signals: UUSignals(overlayVisible: overlay,
                                            controllers: controllers.poll(),
                                            captureActive: capture.active),
                         streamingDisplay: capture.display)

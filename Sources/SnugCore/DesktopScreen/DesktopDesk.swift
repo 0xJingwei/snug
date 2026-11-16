@@ -51,9 +51,11 @@ public final class DesktopDesk {
     private let windows: any WindowControl
     private let timeline: any Timeline
     private let ledger: RestoreRecord<DesktopRecord>
-    private let lane = SerialLane()
+    private let lane: SerialLane
 
     private var wanted = false
+    private var connectionActive = true
+    private var gatheringGeneration = 0
     private var streaming = false
     private var excludedDisplays: Set<DisplayID> = []
     private var excludedBounds: [CGRect] = []
@@ -71,7 +73,8 @@ public final class DesktopDesk {
     private var syncing = false
 
     public init(displays: any DesktopDisplays, windows: any WindowControl, timeline: any Timeline = SystemTimeline(),
-                paths: SnugPaths, screen: DesktopScreen = DesktopChoice.standard.screen) {
+                paths: SnugPaths, screen: DesktopScreen = DesktopChoice.standard.screen, lane: SerialLane = SerialLane()) {
+        self.lane = lane
         self.displays = displays
         self.windows = windows
         self.timeline = timeline
@@ -95,14 +98,15 @@ public final class DesktopDesk {
     /// 更新「UU 此刻是否在推桌面屏」及需要避开的手机屏/窗口。一旦进入推流且尚未聚拢，自动收拢所有多屏窗口
     public func setContext(streaming: Bool, excludedDisplays: Set<DisplayID> = [], excludedBounds: [CGRect] = [],
                            excludedWindows: Set<WindowKey> = []) {
+        let generation = gatheringGeneration
         let becameStreaming = streaming && !self.streaming
         self.streaming = streaming
         self.excludedDisplays = excludedDisplays
         self.excludedBounds = excludedBounds
         self.excludedWindows = excludedWindows
-        guard becameStreaming, wanted, !state.gathered else { return }
+        guard connectionActive, becameStreaming, wanted, !state.gathered else { return }
         lane.run {
-            guard self.wanted, self.streaming, !self.state.gathered, self.display != nil else { return }
+            guard self.connectionActive, generation == self.gatheringGeneration, self.wanted, self.streaming, !self.state.gathered, self.display != nil else { return }
             await self.gatherAll()
         }
     }
@@ -120,8 +124,16 @@ public final class DesktopDesk {
     }
 
     /// 手动把聚拢的窗口提前归位（不断开远控、不撤桌面屏；之后再切回桌面屏可再次触发聚拢）
+    public func setConnectionActive(_ active: Bool) { connectionActive = active }
+
+    public func restoreForDisconnect() {
+        connectionActive = false
+        streaming = false
+        restoreWindows()
+    }
+
     public func restoreWindows() {
-        guard state.gathered || !records.isEmpty else { return }
+        gatheringGeneration += 1
         lane.run {
             await self.restoreAll()
             self.state.gathered = false
@@ -280,11 +292,14 @@ public final class DesktopDesk {
 
     /// 首次切入桌面屏：先把上次残留账本结清，再把所有其它物理屏和全屏空间的非最小化窗口收拢到桌面屏
     private func gatherAll() async {
+        let generation = gatheringGeneration
+        guard connectionActive else { return }
         guard let id = display?.id, let area = displays.windowArea(id), let desktopBounds = displays.bounds(id) else {
             Log.warn("聚拢窗口：桌面屏可放区域尚未就绪")
             return
         }
         await putBackLeftover()
+        guard connectionActive, generation == gatheringGeneration else { return }
         state.gathering = true
         state.gathered = true
         defer { state.gathering = false }
@@ -296,9 +311,10 @@ public final class DesktopDesk {
 
         // 从后往前挪或保持原层次：WindowService.move 只改坐标尺寸、不 raise，不会打乱前后顺序；记下最前面的窗口最后激活
         for candidate in candidates {
-            guard wanted else { break }
+            guard wanted, connectionActive, generation == gatheringGeneration else { break }
             guard !excludedWindows.contains(candidate.key) else { continue }
             guard let look = await windows.look(candidate.key), !look.minimized else { continue }
+            guard connectionActive, generation == gatheringGeneration else { break }
             let mid = CGPoint(x: look.frame.midX, y: look.frame.midY)
             if isOnExcludedDisplay(mid) { continue }
             if desktopBounds.contains(mid) {
@@ -451,6 +467,10 @@ public final class DesktopDesk {
                 return record
             }
             return nil
+        }
+        guard got.matches(record.original) else {
+            Log.warn("\(record.label) 归位没对上，保留还原记录")
+            return record
         }
         if record.wasFullScreen {
             await timeline.sleep(Self.settleDelay)

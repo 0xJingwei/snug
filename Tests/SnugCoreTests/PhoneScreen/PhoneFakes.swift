@@ -520,9 +520,12 @@ final class FakeApps: AppControl {
 /// 不真等的时钟：sleep 直接把时间往前拨
 final class ManualTimeline: Timeline {
     private let clock = Locked<TimeInterval>(1000)
+    private let beforeSleep = Locked<(@Sendable () async -> Void)?>(nil)
+    func onSleep(_ body: (@Sendable () async -> Void)?) { beforeSleep.withLock { $0 = body } }
     var now: TimeInterval { clock.withLock { $0 } }
     func advance(_ seconds: TimeInterval) { clock.withLock { $0 += seconds } }
     func sleep(_ seconds: TimeInterval) async {
+        if let body = beforeSleep.withLock({ $0 }) { await body() }
         advance(seconds)
         await Task.yield()
     }

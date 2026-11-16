@@ -6,6 +6,177 @@ import Testing
 @Suite("手机屏调度 PhoneDesk")
 @MainActor
 struct PhoneDeskTests {
+    @Test("留下账窗口的移动调用返回错误坐标：保留账本，实际归位后才销账")
+    func returnedWrongPositionRetainsLeftBehindRecord() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        rig.apps.run(AppInfo(bundleID: "com.apple.finder", name: "Finder", path: nil), pid: finder.key.pid)
+        await rig.pull(finder)
+        await rig.vanishPlaced(finder)
+        rig.desk.restoreForDisconnect()
+        await rig.desk.idle()
+        rig.windows.add(finder.key, frame: phoneArea, info: finder)
+        rig.windows.ignoreMoves()
+        await rig.checkReturns()
+        #expect(!rig.leftBehind.isEmpty)
+        #expect(rig.windows.window(finder.key)?.frame == phoneArea)
+        rig.windows.ignoreMoves(false)
+        await rig.checkReturns()
+        #expect(rig.leftBehind.isEmpty)
+        #expect(rig.windows.window(finder.key)?.frame == finderHome)
+    }
+
+    @Test("断开前只排队尚未发出的关闭意图，快速重连后也不能启动旧对话框监听")
+    func queuedCloseCannotStartOldWatchAfterReconnect() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(ghostty)
+        rig.windows.onClose(finder.key, .stalls)
+        rig.desk.close(finder)
+        rig.desk.restoreForDisconnect()
+        rig.desk.setConnectionActive(true)
+        rig.windows.ask(finder.key, answeredAfter: 2)
+        await rig.desk.idle()
+        #expect(rig.desk.state.placed == nil)
+        #expect(rig.windows.window(finder.key)?.frame == finderHome)
+    }
+
+    @Test("断开后旧关闭监听迟到的对话框不能重新铺窗，快速重连也一样", arguments: [false, true])
+    func lateAskingCannotReopenAfterDisconnect(reconnect: Bool) async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(ghostty)
+        rig.windows.onClose(finder.key, .stalls)
+        let triggered = Locked(false)
+        rig.timeline.onSleep {
+            await MainActor.run {
+                let first = triggered.withLock { value in
+                    if value { return false }; value = true; return true
+                }
+                if first {
+                    rig.desk.restoreForDisconnect()
+                    if reconnect { rig.desk.setConnectionActive(true) }
+                    rig.windows.ask(finder.key)
+                }
+            }
+        }
+        rig.desk.close(finder)
+        await rig.desk.idle()
+        rig.timeline.onSleep(nil)
+        #expect(rig.desk.state.placed == nil)
+        #expect(rig.windows.window(ghostty.key)?.frame == ghosttyHome)
+        #expect(rig.windows.window(finder.key)?.frame == finderHome)
+    }
+
+    @Test("断开后留下账窗口返回手机屏：按账本归位，不自动再铺上去")
+    func returnedWindowStaysRestoredAfterReconnect() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        rig.apps.run(AppInfo(bundleID: "com.apple.finder", name: "Finder", path: nil), pid: finder.key.pid)
+        await rig.pull(finder)
+        await rig.vanishPlaced(finder)
+        #expect(!rig.leftBehind.isEmpty)
+        rig.desk.restoreForDisconnect()
+        rig.desk.setConnectionActive(true)
+        await rig.desk.idle()
+        rig.windows.add(finder.key, frame: phoneArea, info: finder)
+        await rig.checkReturns()
+        #expect(rig.desk.state.placed == nil)
+        #expect(rig.windows.window(finder.key)?.frame == finderHome)
+        #expect(rig.leftBehind.isEmpty)
+    }
+
+    @Test("窗口接受移动调用却留在错误位置：保留账本，下一次恢复可重试")
+    func disconnectRetainsWrongPositionRecord() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(finder)
+        rig.windows.ignoreMoves()
+        rig.desk.restoreForDisconnect()
+        await rig.desk.idle()
+        #expect(rig.record != nil)
+        #expect(rig.desk.state.placed != nil)
+        rig.windows.ignoreMoves(false)
+        rig.desk.setWanted(false)
+        await rig.desk.idle()
+        #expect(rig.record == nil)
+        #expect(rig.windows.window(finder.key)?.frame == finderHome)
+    }
+
+    @Test("等待打开的 App 不出窗口时断开：旧等待立即退出；快速重连也不复活旧意图", arguments: [false, true])
+    func disconnectAbandonsLongOpenWait(reconnect: Bool) async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(ghostty)
+        let slow = AppInfo(bundleID: "test.slow", name: "Slow", path: nil)
+        rig.apps.run(slow, pid: 888)
+        let started = rig.timeline.now
+        let triggered = Locked(false)
+        rig.timeline.onSleep {
+            await MainActor.run {
+                let first = triggered.withLock { value in
+                    if value { return false }
+                    value = true
+                    return true
+                }
+                if first {
+                    rig.desk.restoreForDisconnect()
+                    if reconnect { rig.desk.setConnectionActive(true) }
+                }
+            }
+        }
+        rig.desk.open(slow)
+        await rig.desk.idle()
+        rig.timeline.onSleep(nil)
+        #expect(rig.desk.state.placed == nil)
+        #expect(rig.windows.window(ghostty.key)?.frame == ghosttyHome)
+        #expect(rig.timeline.now - started < 5)
+    }
+
+    @Test("断开后先归位窗口，不等重连窗口结束，也不提前撤虚拟屏")
+    func disconnectReturnsWindowBeforeRetiringScreen() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(ghostty)
+        let started = rig.timeline.now
+        rig.desk.restoreForDisconnect()
+        await rig.desk.idle()
+        #expect(rig.windows.window(ghostty.key)?.frame == ghosttyHome)
+        #expect(rig.windows.window(ghostty.key)?.zoom == 0)
+        #expect(rig.desk.state.placed == nil)
+        #expect(rig.record == nil)
+        #expect(rig.desk.state.screen == .ready(101))
+        #expect(rig.timeline.now - started < SessionEpisode.reconnectWindow)
+    }
+
+    @Test("放窗还在队列中时断开：放完也会归位，不漏掉尚未登记的窗口")
+    func disconnectWhilePullIsQueued() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        rig.desk.pull(ghostty)
+        rig.desk.restoreForDisconnect()
+        await rig.desk.idle()
+        #expect(rig.desk.state.placed == nil)
+        #expect(rig.desk.state.work == nil)
+        #expect(rig.windows.window(ghostty.key)?.frame == ghosttyHome)
+    }
+
+    @Test("断开时窗口拒绝移动：保留恢复账本，后续撤屏仍可重试")
+    func disconnectRetainsFailedRestoreRecord() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(finder)
+        rig.windows.blockMoves()
+        rig.desk.restoreForDisconnect()
+        await rig.desk.idle()
+        #expect(rig.record != nil)
+        rig.windows.blockMoves(false)
+        rig.desk.setWanted(false)
+        await rig.desk.idle()
+        #expect(rig.record == nil)
+        #expect(rig.windows.window(finder.key)?.frame == finderHome)
+    }
+
     @Test("要手机屏：加屏前给窗口拍快照，加好后把被系统拉走的窗口放回去；露出 App 资源库")
     func addScreen() async throws {
         let rig = try Rig()
