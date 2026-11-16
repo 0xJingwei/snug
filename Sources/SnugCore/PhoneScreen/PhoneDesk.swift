@@ -5,7 +5,7 @@
 // 另起一个盯着，期间别的动作照做；盯到对话框时再排进队把它放上手机屏。
 // 屏幕适配（ScreenFit）：手机屏的比例跟着用户的手机走（设置里换了就在线换，不撤屏）；
 // 宽度跟着屏上显示的东西走，露着列表是基准宽度，放着窗口是那个窗口要的一档。
-// 隔离：只动手机屏和放上来的那一个窗口；加屏、撤屏被系统挪动的其它窗口放回原处；
+// 隔离：只动手机屏和放上来的那一个窗口；加屏、撤屏被系统挪动的其它窗口放回原处、被系统拨动的别的屏设回原来的模式；
 // 每一处改动先记账再动手，还原成功才销账。没销的账（Snug 崩溃、App 卡住没放成）
 // 在下次启动（recover()）、或下次放窗口之前按账还原，不会被新的记录盖掉。
 // 窗口在 Snug 之外没了（手机上关掉、App 自己换了窗口），App 多半已经把手机屏上的大小、字号存下了：
@@ -140,7 +140,7 @@ public final class PhoneDesk {
     /// 确认 App 退完、窗口关上的那一刻，在撤掉「正在退出 / 正在关闭」之前：数据源据此马上去掉它，
     /// 不然要等下一轮刷新，卡片会以原样闪回一下
     public var onGone: ((Gone) -> Void)?
-    /// 即将加屏、撤屏：会话层据此暂缓断开判定（屏幕组合一变，UU 的信号会抖一下）
+    /// 即将加屏、撤屏，或把被拨动的别的屏设回去：会话层据此暂缓断开判定（屏幕一变，UU 的信号会抖一下）
     public var onTopologyChange: (() -> Void)?
     /// 设置里的默认字号级数
     public private(set) var defaultZoom: Int
@@ -495,13 +495,13 @@ public final class PhoneDesk {
 
     private func addScreen() async {
         state.screen = .preparing
-        let before = await windows.snapshot()
+        let before = await surroundings()
         onTopologyChange?()
         do {
             let id = try await displays.create(fit)
             display = (id, timeline.now)
             failures = 0
-            await windows.restore(before, except: placement?.window.key)
+            await restore(before, after: "加屏")
             // 新屏从干净的提示开始：撤屏后才轮到的动作（比如盯着的退出排进队的放对话框）会在没屏时留下提示
             state.notice = nil
             state.screen = .ready(id)
@@ -557,14 +557,37 @@ public final class PhoneDesk {
         let age = timeline.now - bornAt
         if age < PhoneScreenSpec.minimumLifetime { await timeline.sleep(PhoneScreenSpec.minimumLifetime - age) }
         let gone = displays.bounds(id)
-        let before = await windows.snapshot()
+        var before = await surroundings()
         onTopologyChange?()
         await displays.retire(id)
         display = nil
         // 原本就在手机屏上的窗口（手机上新开的）交给系统安置：那块屏已经没了，放回原处只会落到屏幕外
-        let elsewhere = gone.map { screen in before.filter { !screen.contains(CGPoint(x: $0.value.midX, y: $0.value.midY)) } }
-        await windows.restore(elsewhere ?? before, except: placement?.window.key)
+        if let screen = gone { before.windows = before.windows.filter { !screen.contains(CGPoint(x: $0.value.midX, y: $0.value.midY)) } }
+        await restore(before, after: "撤屏")
         Log.info("已撤掉手机屏 #\(id)")
+    }
+
+    /// 手机屏以外的一切：窗口在哪、别的屏是什么模式。macOS 一换屏幕组合就会动它们：把窗口挪来挪去，
+    /// 把别的屏拨回它给新的这组屏幕记的模式（UU 远程时临时切的 30Hz 就这样留在了主屏上，issue #13）。
+    /// 加屏、撤屏前记下，换完放回：Snug 的屏来去，别的都照旧
+    private struct Surroundings {
+        var windows: [WindowKey: CGRect]
+        var modes: [DisplayID: ScreenMode]
+    }
+
+    private func surroundings() async -> Surroundings {
+        Surroundings(windows: await windows.snapshot(), modes: displays.otherModes())
+    }
+
+    /// 放回被挪动的窗口、被拨动的屏。这期间拔掉、新接上的屏不碰
+    private func restore(_ before: Surroundings, after change: String) async {
+        await windows.restore(before.windows, except: placement?.window.key)
+        let now = displays.otherModes()
+        let drifted = before.modes.filter { id, mode in now[id].map { $0 != mode } ?? false }.sorted { $0.key < $1.key }
+        guard !drifted.isEmpty else { return }
+        Log.info("\(change)时 macOS 把 \(drifted.count) 块屏拨回了它给这组屏幕记的模式，设回\(change)前的样子")
+        onTopologyChange?()
+        for (id, mode) in drifted { await displays.setMode(id, mode) }
     }
 
     /// 把手机屏换成 fit 的比例（排在队里时又换了几次的，按最新的换）。

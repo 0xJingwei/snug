@@ -25,6 +25,10 @@ public protocol PhoneDisplays: AnyObject {
     func windowArea(_ id: DisplayID) -> CGRect?
     /// 主屏的可放区域（辅助功能坐标）：原位落在手机屏上的窗口（App 记得上次在手机屏上），原位改记成在这里居中
     func mainArea() -> CGRect?
+    /// 别的屏（手机屏以外的）此刻的模式。加屏、撤屏前记下：macOS 一换屏幕组合，就把别的屏拨回它给新组合记的模式
+    func otherModes() -> [DisplayID: ScreenMode]
+    /// 把一块别的屏设回这个模式（交给帮手进程）。设不成只记日志
+    func setMode(_ id: DisplayID, _ mode: ScreenMode) async
 }
 
 /// 窗口此刻的样子

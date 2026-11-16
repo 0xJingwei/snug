@@ -2,7 +2,8 @@
 // - 建屏时把 ScreenFit 的每一档都登记成模式，hiDPI 打开，maxPixels 框住所有比例：每一档都有 2 倍模式
 // - 换比例在线换模式表（约 0.2 秒，屏不掉线、编号不变），系统随即跳到最宽一档，再切回基准宽度
 // - 系统上线时用它记着的那一档（第一次是最宽的），所以上线后切回基准宽度
-// - 换档交给帮手进程（主程序亲自切会让释放拖 40 秒以上）
+// - 换档交给帮手进程（主程序亲自切会让释放拖 40 秒以上）；把被 macOS 拨动的别的屏设回去也交给它
+// - 撤屏要等到真的下线：下线那一刻 macOS 才挪窗口、把别的屏拨回它给这组屏幕记的模式，早了放回去也白放
 // - 建好不上线就换备用身份
 // - 在主线程建和释放；释放时不能留局部强引用，否则不会真正释放
 import AppKit
@@ -12,7 +13,10 @@ import SnugCore
 @MainActor
 public final class PhoneDisplayService: PhoneDisplays {
     static let onlineTimeout: TimeInterval = 6
+    /// 释放后通常 0.1 秒下线；过了这么久还在就记一笔，接着等
     static let offlineTimeout: TimeInterval = 10
+    /// 最多等这么久（报告人那里有过 10 秒以上才下线的）
+    static let offlineGiveUp: TimeInterval = 60
     /// 帮手切模式最多等这么久（正常不到一秒）
     nonisolated static let helperTimeout: TimeInterval = 10
     /// 切完等界面（NSScreen）认到新尺寸最多这么久：可放区域按它算，认到之前算出来的还是旧尺寸
@@ -59,8 +63,14 @@ public final class PhoneDisplayService: PhoneDisplays {
         }
         autoreleasepool { displays[id] = nil }
         fits[id] = nil
+        let released = ProcessInfo.processInfo.systemUptime
         if await !wait(id, online: false, timeout: Self.offlineTimeout) {
-            Log.warn("手机屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线")
+            Log.warn("手机屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线，接着等它下线")
+            if await wait(id, online: false, timeout: Self.offlineGiveUp - Self.offlineTimeout) {
+                Log.info("手机屏 #\(id) 释放 \(Int(ProcessInfo.processInfo.systemUptime - released)) 秒后下线")
+            } else {
+                Log.error("手机屏 #\(id) 释放 \(Int(Self.offlineGiveUp)) 秒后仍在线，不再等：它下线时 macOS 挪动的窗口、拨动的屏幕模式不会被放回")
+            }
         }
         // 系统挪窗口要一点时间，等它挪完再给窗口拍对比
         try? await Task.sleep(for: .seconds(1))
@@ -105,7 +115,7 @@ public final class PhoneDisplayService: PhoneDisplays {
         }
         let from = DisplayMode.describe(id)
         let size = fit.size(width: width)
-        let status = await runHelper(id, width: width, height: Int(size.height))
+        let status = await runHelper(id, .hiDPI(width: width, height: Int(size.height)))
         guard status == 0 else {
             Log.warn("手机屏 #\(id) 换不到 \(width) 宽（帮手退出码 \(status.map(String.init) ?? "启动失败")），现在 \(DisplayMode.describe(id))")
             return
@@ -135,6 +145,24 @@ public final class PhoneDisplayService: PhoneDisplays {
 
     public func mainArea() -> CGRect? {
         Screens.primary.map { Screens.axRect(fromAppKit: $0.visibleFrame) }
+    }
+
+    public func otherModes() -> [DisplayID: ScreenMode] {
+        var modes: [DisplayID: ScreenMode] = [:]
+        for id in Self.onlineIDs() where displays[id] == nil {
+            modes[id] = DisplayMode.current(id)
+        }
+        return modes
+    }
+
+    public func setMode(_ id: DisplayID, _ mode: ScreenMode) async {
+        let was = DisplayMode.describe(id)
+        let status = await runHelper(id, .exact(mode))
+        if status == 0 {
+            Log.info("「\(Screens.name(of: id))」从 \(was) 设回 \(mode)")
+        } else {
+            Log.warn("「\(Screens.name(of: id))」设不回 \(mode)（帮手退出码 \(status.map(String.init) ?? "启动失败")），现在 \(DisplayMode.describe(id))")
+        }
     }
 
     // MARK: 内部
@@ -181,20 +209,22 @@ public final class PhoneDisplayService: PhoneDisplays {
         return true
     }
 
-    private static func isOnline(_ id: DisplayID) -> Bool {
+    private static func isOnline(_ id: DisplayID) -> Bool { onlineIDs().contains(id) }
+
+    private static func onlineIDs() -> [DisplayID] {
         var count: UInt32 = 0
-        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return false }
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return false }
-        return ids.prefix(Int(count)).contains(id)
+        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return [] }
+        return Array(ids.prefix(Int(count)))
     }
 
-    /// 起帮手进程换档，等它退出；返回退出码，起不来返回 nil。
+    /// 起帮手进程切模式，等它退出；返回退出码，起不来返回 nil。
     /// 最多等 helperTimeout：帮手卡在屏幕配置里不退出，就结束它（换档本来就是尽力而为），不能让建屏和整条调度队一直等
-    private func runHelper(_ id: DisplayID, width: Int, height: Int) async -> Int32? {
+    private func runHelper(_ id: DisplayID, _ target: ModeTarget) async -> Int32? {
         let process = Process()
         process.executableURL = helper
-        process.arguments = ["--set-mode", "\(id)", "\(width)", "\(height)"]
+        process.arguments = target.arguments(display: id)
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
             do {

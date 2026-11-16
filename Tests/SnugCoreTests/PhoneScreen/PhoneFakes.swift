@@ -38,6 +38,10 @@ final class FakeDisplays: PhoneDisplays {
     var widths: [DisplayID: Int] = [:]
     /// 每块屏登记的是哪个比例的档位
     private(set) var fits: [DisplayID: ScreenFit] = [:]
+    /// 别的屏此刻的模式。在 onCreate / onRetire 里改它，模拟 macOS 换屏幕组合时把别的屏拨回它记的模式
+    var others: [DisplayID: ScreenMode] = [:]
+    /// 设模式不成（帮手失败）：屏还是被拨动后的模式
+    var modeFails = false
 
     init(journal: Journal) { self.journal = journal }
 
@@ -102,6 +106,14 @@ final class FakeDisplays: PhoneDisplays {
     /// 假主屏：左上角在原点，1512 宽，扣掉菜单栏
     nonisolated static let main = CGRect(x: 0, y: 25, width: 1512, height: 957)
     func mainArea() -> CGRect? { Self.main }
+
+    func otherModes() -> [DisplayID: ScreenMode] { others }
+
+    func setMode(_ id: DisplayID, _ mode: ScreenMode) async {
+        journal.add("mode \(id) \(mode)")
+        guard !modeFails, others[id] != nil else { return }
+        others[id] = mode
+    }
 }
 
 /// 假窗口：记住每个窗口的位置、是否全屏、是否最小化、字号级数
