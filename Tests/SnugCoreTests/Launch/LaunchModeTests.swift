@@ -23,9 +23,13 @@ struct LaunchModeTests {
         }
     }
 
-    @Test("--set-mode <屏幕编号> <宽> <高>")
+    @Test("--set-mode 与 --restore-mode")
     func setMode() throws {
         #expect(try LaunchMode.parse(["--set-mode", "14", "740", "1302"]) == .setMode(display: 14, width: 740, height: 1302))
+        #expect(
+            try LaunchMode.parse(["--restore-mode", "3", "1920", "1200", "3840", "2400", "60"])
+                == .restoreMode(display: 3, width: 1920, height: 1200, pixelWidth: 3840, pixelHeight: 2400, refreshRate: 60)
+        )
     }
 
     @Test("--dump-uu、--preview-phone、--preview-desktop")

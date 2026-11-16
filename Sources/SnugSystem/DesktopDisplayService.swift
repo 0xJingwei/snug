@@ -15,11 +15,13 @@ public final class DesktopDisplayService: DesktopDisplays {
 
     private var displays: [DisplayID: CGVirtualDisplay] = [:]
     private var screens: [DisplayID: DesktopScreen] = [:]
+    private var physicalSnapshots: [DisplayID: PhysicalDisplaySnapshot] = [:]
     private let helper: URL
 
     public init(helper: URL) { self.helper = helper }
 
     public func create(_ screen: DesktopScreen) async throws -> DisplayID {
+        let physicalBefore = PhysicalDisplaySnapshot.capture()
         var madeAny = false
         for serial in DesktopScreenSpec.serials {
             guard let display = make(serial: serial, screen: screen) else {
@@ -30,6 +32,7 @@ public final class DesktopDisplayService: DesktopDisplays {
             let id = display.displayID
             displays[id] = display
             screens[id] = screen
+            physicalSnapshots[id] = physicalBefore
             guard await wait(id, online: true, timeout: Self.onlineTimeout) else {
                 Log.warn("桌面屏 #\(id)（serial=\(serial)）建好 \(Int(Self.onlineTimeout)) 秒没上线，换备用身份")
                 await retire(id)
@@ -37,6 +40,7 @@ public final class DesktopDisplayService: DesktopDisplays {
             }
             try? await Task.sleep(for: .seconds(0.8))
             if size(id) != screen { await setSize(id, screen) }
+            await PhysicalDisplayGuard.restoreIfNeeded(physicalBefore, helper: helper)
             return id
         }
         throw madeAny ? DesktopScreenError.neverOnline : DesktopScreenError.createFailed
@@ -47,12 +51,14 @@ public final class DesktopDisplayService: DesktopDisplays {
             Log.warn("要撤的桌面屏 #\(id) 不是本进程建的")
             return
         }
+        let savedPhysical = physicalSnapshots.removeValue(forKey: id) ?? PhysicalDisplaySnapshot.capture()
         autoreleasepool { displays[id] = nil }
         screens[id] = nil
         if await !wait(id, online: false, timeout: Self.offlineTimeout) {
             Log.warn("桌面屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线")
         }
         try? await Task.sleep(for: .seconds(1))
+        await PhysicalDisplayGuard.restoreIfNeeded(savedPhysical, helper: helper)
     }
 
     public func reshape(_ id: DisplayID, to screen: DesktopScreen) async -> Bool {

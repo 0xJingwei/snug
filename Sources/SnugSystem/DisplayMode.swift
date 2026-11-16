@@ -64,4 +64,34 @@ public enum DisplayMode {
         if done != .success { CGCancelDisplayConfiguration(config) }
         return done == .success ? .switched : .failed(done)
     }
+
+    /// 帮手进程里调用：把实体显示器精确恢复到原来的逻辑尺寸、像素尺寸与刷新率
+    public static func switchToExactMode(
+        _ id: DisplayID,
+        width: Int,
+        height: Int,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        refreshRate: Int
+    ) -> Outcome {
+        let options = [kCGDisplayShowDuplicateLowResolutionModes: true] as CFDictionary
+        let modes = (CGDisplayCopyAllDisplayModes(id, options) as? [CGDisplayMode]) ?? []
+        let candidates = modes.filter {
+            $0.width == width && $0.height == height
+                && $0.pixelWidth == pixelWidth && $0.pixelHeight == pixelHeight
+        }
+        let chosen = candidates.first { Int($0.refreshRate.rounded()) == refreshRate } ?? candidates.first
+        guard let mode = chosen else { return .unavailable }
+        var config: CGDisplayConfigRef?
+        let begin = CGBeginDisplayConfiguration(&config)
+        guard begin == .success else { return .failed(begin) }
+        let staged = CGConfigureDisplayWithDisplayMode(config, id, mode, nil)
+        guard staged == .success else {
+            CGCancelDisplayConfiguration(config)
+            return .failed(staged)
+        }
+        let done = CGCompleteDisplayConfiguration(config, .forSession)
+        if done != .success { CGCancelDisplayConfiguration(config) }
+        return done == .success ? .switched : .failed(done)
+    }
 }

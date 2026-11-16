@@ -23,12 +23,15 @@ public final class PhoneDisplayService: PhoneDisplays {
     private var displays: [DisplayID: CGVirtualDisplay] = [:]
     /// 每块屏登记的是哪个比例的档位：换档时按它算高
     private var fits: [DisplayID: ScreenFit] = [:]
+    /// 建屏前拍下的实体显示器模式，撤屏时用来兜底核对
+    private var physicalSnapshots: [DisplayID: PhysicalDisplaySnapshot] = [:]
     /// 帮手进程：就是 Snug 自己，带 --set-mode 运行
     private let helper: URL
 
     public init(helper: URL) { self.helper = helper }
 
     public func create(_ fit: ScreenFit) async throws -> DisplayID {
+        let physicalBefore = PhysicalDisplaySnapshot.capture()
         var madeAny = false
         for serial in PhoneScreenSpec.serials {
             guard let display = make(serial: serial, fit: fit) else {
@@ -39,6 +42,7 @@ public final class PhoneDisplayService: PhoneDisplays {
             let id = display.displayID
             displays[id] = display
             fits[id] = fit
+            physicalSnapshots[id] = physicalBefore
             guard await wait(id, online: true, timeout: Self.onlineTimeout) else {
                 Log.warn("手机屏 #\(id)（serial=\(serial)）建好 \(Int(Self.onlineTimeout)) 秒没上线，换备用身份")
                 await retire(id)
@@ -47,6 +51,7 @@ public final class PhoneDisplayService: PhoneDisplays {
             // 刚上线时模式还在变，等它定下来再看是哪一档
             try? await Task.sleep(for: .seconds(0.8))
             if width(id) != fit.baseWidth { await setWidth(id, fit.baseWidth) }
+            await PhysicalDisplayGuard.restoreIfNeeded(physicalBefore, helper: helper)
             return id
         }
         throw madeAny ? PhoneScreenError.neverOnline : PhoneScreenError.createFailed
@@ -57,13 +62,15 @@ public final class PhoneDisplayService: PhoneDisplays {
             Log.warn("要撤的手机屏 #\(id) 不是本进程建的")
             return
         }
+        let savedPhysical = physicalSnapshots.removeValue(forKey: id) ?? PhysicalDisplaySnapshot.capture()
         autoreleasepool { displays[id] = nil }
         fits[id] = nil
         if await !wait(id, online: false, timeout: Self.offlineTimeout) {
             Log.warn("手机屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线")
         }
-        // 系统挪窗口要一点时间，等它挪完再给窗口拍对比
+        // 系统挪窗口要一点时间，等它挪完再核对实体屏分辨率和窗口快照
         try? await Task.sleep(for: .seconds(1))
+        await PhysicalDisplayGuard.restoreIfNeeded(savedPhysical, helper: helper)
     }
 
     public func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool {

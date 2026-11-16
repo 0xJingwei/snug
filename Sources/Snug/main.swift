@@ -24,6 +24,13 @@ case .setMode(let display, let width, let height):
     Log.info("切屏幕 #\(display) 到 2 倍 \(width)x\(height)：\(outcome)")
     Log.flush()
     exit(outcome == .switched ? 0 : 1)
+case .restoreMode(let display, let width, let height, let pixelWidth, let pixelHeight, let refreshRate):
+    Log.setSink(FileLogSink(url: SnugPaths.standard.logFile, processTag: "帮手"))
+    let outcome = DisplayMode.switchToExactMode(
+        display, width: width, height: height, pixelWidth: pixelWidth, pixelHeight: pixelHeight, refreshRate: refreshRate)
+    Log.info("恢复实体屏 #\(display) 到 \(width)x\(height)pt/\(pixelWidth)x\(pixelHeight)px：\(outcome)")
+    Log.flush()
+    exit(outcome == .switched ? 0 : 1)
 case .app, .previewPhone, .previewDesktop:
     let paths = SnugPaths.standard
     Log.setSink(FileLogSink(url: paths.logFile))

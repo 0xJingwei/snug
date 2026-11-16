@@ -24,6 +24,8 @@ public enum LaunchMode: Equatable, Sendable {
     /// 帮手模式：把手机屏换到 width × height 那一档（2 倍）后立即退出。高由主程序按比例算好传来，帮手不读配置。
     /// 主程序亲自切模式，这块虚拟屏释放时会拖 40 秒以上才下线；交给短命的子进程切就没有这个问题
     case setMode(display: DisplayID, width: Int, height: Int)
+    /// 帮手模式：把被系统连带改掉分辨率的实体显示器恢复到原来的模式后立即退出
+    case restoreMode(display: DisplayID, width: Int, height: Int, pixelWidth: Int, pixelHeight: Int, refreshRate: Int)
 
     public static let usage = """
     用法：Snug [模式]
@@ -53,9 +55,9 @@ public enum LaunchMode: Equatable, Sendable {
             rest.removeFirst()
             return v
         }
-        func number<N: FixedWidthInteger>(_: N.Type) throws -> N {
+        func number<N: FixedWidthInteger>(_: N.Type, allowZero: Bool = false) throws -> N {
             let raw = try value()
-            guard let n = N(raw), n > 0 else { throw LaunchModeError.invalidNumber(flag, raw) }
+            guard let n = N(raw), (allowZero ? n >= 0 : n > 0) else { throw LaunchModeError.invalidNumber(flag, raw) }
             return n
         }
         if flag.hasPrefix("--render-"), let target = RenderTarget(rawValue: String(flag.dropFirst("--render-".count))) {
@@ -70,6 +72,15 @@ public enum LaunchMode: Equatable, Sendable {
             return .dumpUU
         case "--set-mode":
             return .setMode(display: try number(DisplayID.self), width: try number(Int.self), height: try number(Int.self))
+        case "--restore-mode":
+            return .restoreMode(
+                display: try number(DisplayID.self),
+                width: try number(Int.self),
+                height: try number(Int.self),
+                pixelWidth: try number(Int.self),
+                pixelHeight: try number(Int.self),
+                refreshRate: try number(Int.self, allowZero: true)
+            )
         default:
             throw LaunchModeError.unknownFlag(flag)
         }
