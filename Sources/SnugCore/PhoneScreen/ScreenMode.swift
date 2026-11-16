@@ -30,9 +30,9 @@ public struct ScreenMode: Equatable, Sendable, CustomStringConvertible {
 
 /// 帮手进程（Snug --set-mode / --restore-mode）要把屏切到哪个模式
 public enum ModeTarget: Equatable, Sendable, CustomStringConvertible {
-    /// 手机屏换档：width × height（点）的 2 倍模式
+    /// 手机屏换档：width × height（点）的 2 倍模式，只对本次登录生效
     case hiDPI(width: Int, height: Int)
-    /// 别的屏：原样设回这个模式
+    /// 别的屏：原样设回这个模式，连永久配置一起（加屏、撤屏时系统把套用来的旧模式也写进了永久配置）
     case exact(ScreenMode)
 
     /// 交给帮手的命令行参数，LaunchMode 按同一套解析回来

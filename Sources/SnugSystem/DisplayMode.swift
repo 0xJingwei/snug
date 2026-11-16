@@ -51,9 +51,16 @@ public enum DisplayMode {
         }
     }
 
-    /// 帮手进程里调用：把屏切到 target。只对本次登录生效
+    /// 帮手进程里调用：把屏切到 target。
+    /// 手机屏换档只对本次登录生效。设回别的屏要连永久配置一起写：屏幕组合一变，WindowServer 把套用来的旧模式
+    /// 同时存进本次登录和永久配置（日志「Saving configuration: session, permanent store」），只设回本次登录，
+    /// 下次登录又是旧模式（实测：forSession 设回后，磁盘上那组屏幕记的仍是 30Hz）
     public static func apply(_ target: ModeTarget, to id: DisplayID) -> Outcome {
         guard let mode = find(target, on: id) else { return .unavailable }
+        let scope: CGConfigureOption = switch target {
+        case .hiDPI: .forSession
+        case .exact: .permanently
+        }
         var config: CGDisplayConfigRef?
         let begin = CGBeginDisplayConfiguration(&config)
         guard begin == .success else { return .failed(begin) }
@@ -62,7 +69,7 @@ public enum DisplayMode {
             CGCancelDisplayConfiguration(config)
             return .failed(staged)
         }
-        let done = CGCompleteDisplayConfiguration(config, .forSession)
+        let done = CGCompleteDisplayConfiguration(config, scope)
         if done != .success { CGCancelDisplayConfiguration(config) }
         return done == .success ? .switched : .failed(done)
     }
