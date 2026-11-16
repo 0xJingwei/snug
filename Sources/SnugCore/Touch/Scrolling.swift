@@ -57,7 +57,7 @@ public struct Momentum: Sendable {
     private let stopSpeed: Double
     private var started = false
 
-    /// 太慢的不算甩，返回 nil。scale：手机屏这一档比基准宽几倍，速度门槛跟着放大
+    /// 太慢的不算甩，返回 nil。scale：范围比基准宽几倍，速度门槛跟着放大
     init?(velocity: (x: Double, y: Double), scale: Double) {
         guard hypot(velocity.x, velocity.y) > Self.minimumSpeed * scale else { return nil }
         vx = velocity.x

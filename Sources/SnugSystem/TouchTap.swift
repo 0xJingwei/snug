@@ -1,9 +1,7 @@
-// 手势翻译的系统部分：一个事件监听，只接管 UURemoteServer 发来、在手机屏里按下的鼠标左键，
-// 交给 TouchTranslator 判断，再照它说的补发点击、右键或滚动。本机的触控板、鼠标一律不碰。
-// 跑在独立线程上：主线程会被建屏、搬窗口卡住，监听回调一慢，系统会让全机的鼠标跟着卡。
-// 补发的事件打上记号：拷贝出来的事件保留 UU 的进程号，不打记号会被自己再接管一次，来回打转
+// 手势翻译的系统部分：一个事件监听，只接管 UURemoteServer 发来、在范围里按下的鼠标左键，
+// 交给 TouchTranslator 判断，再照它说的补发点击、右键或滚动（事件怎么读、怎么拼见 TouchEvents）。本机的触控板、鼠标一律不碰。
+// 跑在独立线程上：主线程会被建屏、搬窗口卡住，监听回调一慢，系统会让全机的鼠标跟着卡
 import CoreGraphics
-import Darwin
 import Foundation
 import os
 import SnugCore
@@ -11,19 +9,25 @@ import SnugCore
 /// 主线程用的开关。每次开启是一个独立的监听会话：关掉马上再开，新旧两个线程互不共用状态
 @MainActor
 public final class TouchTap {
-    /// 手机屏的范围（CGEvent 坐标）。主线程写，监听线程读
-    private let region = OSAllocatedUnfairLock<CGRect?>(initialState: nil)
+    /// 手势翻译管的范围（CGEvent 坐标）。主线程写，监听线程读
+    private let region = OSAllocatedUnfairLock<TouchRegion?>(initialState: nil)
     private var session: TapSession?
 
     public init() {}
 
-    public var isRunning: Bool { session != nil }
+    /// 只在这块范围里翻译手势，nil 就关掉监听。范围变了（换档、屏幕重排）照样调，监听不用重开。
+    /// 要翻译却建不起事件监听（多半是没有辅助功能权限）时交回 false，下次调用再试
+    public func setRegion(_ region: TouchRegion?) -> Bool {
+        self.region.withLock { $0 = region }
+        guard region != nil else {
+            stop()
+            return true
+        }
+        return start()
+    }
 
-    public func setRegion(_ rect: CGRect?) { region.withLock { $0 = rect } }
-
-    /// 起监听线程，等它报告监听建没建成（没有辅助功能权限时建不成）
-    @discardableResult
-    public func start() -> Bool {
+    /// 起监听线程，等它报告监听建没建成
+    private func start() -> Bool {
         guard session == nil else { return true }
         let next = TapSession(region: region)
         guard next.start() else {
@@ -35,7 +39,7 @@ public final class TouchTap {
         return true
     }
 
-    public func stop() {
+    private func stop() {
         guard let session else { return }
         session.stop()
         self.session = nil
@@ -45,10 +49,7 @@ public final class TouchTap {
 
 /// 一次监听：自己的线程、自己的 run loop、自己的状态机。除了 start / stop，其余都只在这个线程上跑
 private final class TapSession: @unchecked Sendable {
-    /// eventSourceUserData 里的记号（'SNUG'）
-    static let marker: Int64 = 0x534E_5547
-
-    private let region: OSAllocatedUnfairLock<CGRect?>
+    private let region: OSAllocatedUnfairLock<TouchRegion?>
     /// 监听线程的 run loop：start 等它建好才返回，之后只读
     private var runLoop: CFRunLoop?
 
@@ -57,9 +58,9 @@ private final class TapSession: @unchecked Sendable {
     private var translator = TouchTranslator()
     private var heldPress: CGEvent?
     private var coastTimer: CFRunLoopTimer?
-    private var isUU: [pid_t: Bool] = [:]
+    private var uu = UUEventSource()
 
-    init(region: OSAllocatedUnfairLock<CGRect?>) { self.region = region }
+    init(region: OSAllocatedUnfairLock<TouchRegion?>) { self.region = region }
 
     func start() -> Bool {
         let ready = DispatchSemaphore(value: 0)
@@ -94,9 +95,8 @@ private final class TapSession: @unchecked Sendable {
     }
 
     private func installTap() -> Bool {
-        let mask = [CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp].reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                          eventsOfInterest: mask, callback: Self.callback,
+                                          eventsOfInterest: TouchEvents.mask, callback: Self.callback,
                                           userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }
         self.tap = tap
         CFRunLoopAddSource(CFRunLoopGetCurrent(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
@@ -116,17 +116,10 @@ private final class TapSession: @unchecked Sendable {
             Log.warn("手势翻译的事件监听被系统停用（\(type == .tapDisabledByTimeout ? "回调超时" : "用户输入")），已重新开启")
             return pass
         }
-        let kind: TouchInput.Kind
-        switch type {
-        case .leftMouseDown: kind = .press
-        case .leftMouseDragged: kind = .drag
-        case .leftMouseUp: kind = .release
-        default: return pass
-        }
-        guard event.getIntegerValueField(.eventSourceUserData) != Self.marker, fromUU(event) else { return pass }
+        guard let kind = TouchEvents.kind(of: type), !TouchEvents.isReplay(event), uu.sent(event) else { return pass }
 
         let input = TouchInput(kind, at: event.location, time: ProcessInfo.processInfo.systemUptime)
-        let response = translator.handle(input, phoneScreen: region.withLock { $0 })
+        let response = translator.handle(input, in: region.withLock { $0 })
         if kind == .press, !response.passOriginal { heldPress = event.copy() }
         response.commands.forEach { perform($0, current: event) }
         if kind == .release { heldPress = nil }
@@ -137,45 +130,22 @@ private final class TapSession: @unchecked Sendable {
     private func perform(_ command: TouchCommand, current: CGEvent) {
         switch command {
         case .replayPress:
-            post(heldPress)
+            TouchEvents.post(heldPress)
             heldPress = nil
         case .replayCurrent:
-            post(current.copy())
+            TouchEvents.post(current.copy())
         case .rightClick(let point):
-            for type in [CGEventType.rightMouseDown, .rightMouseUp] {
-                let click = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .right)
-                click?.setIntegerValueField(.mouseEventClickState, value: 1)
-                post(click)
-            }
+            TouchEvents.rightClick(at: point).forEach(TouchEvents.post)
         case .scroll(let step):
-            post(Self.scrollEvent(step))
+            TouchEvents.post(TouchEvents.scroll(step))
         }
-    }
-
-    private func post(_ event: CGEvent?) {
-        guard let event else { return }
-        event.setIntegerValueField(.eventSourceUserData, value: Self.marker)
-        event.post(tap: .cgSessionEventTap)
-    }
-
-    /// 带相位的像素滚动：App 看到的和触控板两指滑动一样
-    private static func scrollEvent(_ s: ScrollStep) -> CGEvent? {
-        guard let e = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
-                              wheel1: s.pixelsY, wheel2: s.pixelsX, wheel3: 0) else { return nil }
-        e.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
-        e.setIntegerValueField(.scrollWheelEventScrollPhase, value: s.phase.rawValue)
-        e.setIntegerValueField(.scrollWheelEventMomentumPhase, value: s.momentum.rawValue)
-        e.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: s.deltaY)
-        e.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: s.deltaX)
-        e.location = s.location
-        return e
     }
 
     /// 惯性：在监听线程的 run loop 上按 60fps 走，走完自己停
     private func startCoasting() {
         guard coastTimer == nil else { return }
         let timer = CFRunLoopTimerCreateWithHandler(nil, CFAbsoluteTimeGetCurrent(), 1 / Momentum.frameRate, 0, 0) { [self] _ in
-            if let step = translator.momentumFrame() { post(Self.scrollEvent(step)) }
+            if let step = translator.momentumFrame() { TouchEvents.post(TouchEvents.scroll(step)) }
             if !translator.isCoasting { stopCoasting() }
         }
         coastTimer = timer
@@ -186,18 +156,5 @@ private final class TapSession: @unchecked Sendable {
         guard let timer = coastTimer else { return }
         CFRunLoopTimerInvalidate(timer)
         coastTimer = nil
-    }
-
-    /// 事件是不是 UURemoteServer 注入的：按来源进程号查可执行文件名，按进程号缓存
-    private func fromUU(_ event: CGEvent) -> Bool {
-        let pid = pid_t(event.getIntegerValueField(.eventSourceUnixProcessID))
-        guard pid > 0 else { return false }
-        if let known = isUU[pid] { return known }
-        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
-        let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
-        let path = length > 0 ? String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self) : ""
-        let match = (path as NSString).lastPathComponent == UURemote.serverProcess
-        isUU[pid] = match
-        return match
     }
 }

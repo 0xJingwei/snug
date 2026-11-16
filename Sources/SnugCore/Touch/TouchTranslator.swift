@@ -5,10 +5,22 @@
 //   按住 0.5 秒松手 → 右键菜单（选区不丢，菜单里有拷贝、粘贴）
 // UU 把单指拖动当成鼠标拖动发过来（会选中文字），滚动要两根手指，这里在 Mac 这一侧翻译回来。
 // 纯状态机：吃进 UU 的按下 / 拖动 / 抬起，吐出「原事件放不放行」和要补发的事件，时间由调用方给。
-// 只有手机屏里按下的那一下会被接管；之后的拖动、抬起跟着这一下走，手指滑出手机屏也一样。
-// 阈值按基准宽度标定，手机屏换到更宽的一档时按比例放大（ScreenFit.scale），在手机上手感不变
+// 只有范围（TouchRegion）里按下的那一下会被接管；之后的拖动、抬起跟着这一下走，手指滑出范围也一样。
+// 阈值按基准宽度标定，乘上范围带来的缩放倍数：手机屏换到更宽的一档时跟着放大，在手机上手感不变。
+// 这个模块不知道手机屏：范围和倍数由手机屏那边给（TouchRegion(phoneScreen:)），系统那半在 SnugSystem 的 TouchTap
 import CoreGraphics
 import Foundation
+
+/// 手势翻译管的范围（全局坐标），和这块范围比基准宽度宽几倍：阈值都乘它
+public struct TouchRegion: Equatable, Sendable {
+    public var frame: CGRect
+    public var scale: Double
+
+    public init(frame: CGRect, scale: Double) {
+        self.frame = frame
+        self.scale = scale
+    }
+}
 
 public struct TouchInput: Equatable, Sendable {
     public enum Kind: Equatable, Sendable { case press, drag, release }
@@ -70,7 +82,7 @@ public struct TouchTranslator: Sendable {
     private var samples: [(time: TimeInterval, point: CGPoint)] = []
     private var wheel = ScrollWheel()
     private var momentum: Momentum?
-    /// 这次按下时手机屏那一档比基准宽几倍：阈值都乘它
+    /// 这次按下时范围比基准宽几倍：阈值都乘它
     private var scale = 1.0
     /// 这次按下停掉了惯性：很快松手就只是停住，不补发点击
     private var pressStoppedCoast = false
@@ -80,10 +92,10 @@ public struct TouchTranslator: Sendable {
     /// 惯性还在走：调用方按 Momentum.frameRate 定时调 momentumFrame()
     public var isCoasting: Bool { momentum != nil }
 
-    /// phoneScreen：手机屏的范围（全局坐标，没有手机屏时为 nil）。只看按下那一下落没落在里面
-    public mutating func handle(_ input: TouchInput, phoneScreen: CGRect?) -> TouchResponse {
+    /// region：手势翻译管的范围（关掉时为 nil）。只看按下那一下落没落在里面
+    public mutating func handle(_ input: TouchInput, in region: TouchRegion?) -> TouchResponse {
         switch input.kind {
-        case .press: press(input, on: phoneScreen)
+        case .press: press(input, in: region)
         case .drag: drag(input)
         case .release: release(input)
         }
@@ -100,14 +112,14 @@ public struct TouchTranslator: Sendable {
         return wheel.step(dx: frame.dx, dy: frame.dy, phase: .none, momentum: frame.phase, at: origin)
     }
 
-    private mutating func press(_ input: TouchInput, on phoneScreen: CGRect?) -> TouchResponse {
+    private mutating func press(_ input: TouchInput, in region: TouchRegion?) -> TouchResponse {
         // 新的一按先把还在走的惯性停掉（和 iPhone 上手指按住正在滚的列表一样）
         let stop = stopMomentum()
-        guard let phoneScreen, phoneScreen.contains(input.location) else {
+        guard let region, region.frame.contains(input.location) else {
             phase = .idle
             return TouchResponse(passOriginal: true, commands: stop)
         }
-        scale = ScreenFit.scale(screenWidth: phoneScreen.width)
+        scale = region.scale
         pressStoppedCoast = !stop.isEmpty
         phase = .pending(since: input.time)
         origin = input.location

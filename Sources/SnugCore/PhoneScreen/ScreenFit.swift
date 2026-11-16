@@ -87,3 +87,10 @@ public struct ScreenFit: Equatable, Sendable, CustomStringConvertible {
         (baseHomeBarHeight * scale(screenWidth: screenWidth)).rounded()
     }
 }
+
+extension TouchRegion {
+    /// 手势翻译管整块手机屏，阈值按这一档比基准宽度宽几倍放大（和小横条一样，在手机上划着手感不变）
+    public init(phoneScreen bounds: CGRect) {
+        self.init(frame: bounds, scale: ScreenFit.scale(screenWidth: bounds.width))
+    }
+}

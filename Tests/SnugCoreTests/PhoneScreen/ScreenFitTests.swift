@@ -115,4 +115,10 @@ struct ScreenFitTests {
         #expect(ScreenFit.homeBarHeight(screenWidth: 540) == 28)
         #expect(ScreenFit.homeBarHeight(screenWidth: 1080) == 56)
     }
+
+    @Test("手势翻译的范围：整块手机屏，阈值按这一档放大")
+    func touchRegion() {
+        let screen = CGRect(x: 1512, y: 0, width: 1080, height: 1900)
+        #expect(TouchRegion(phoneScreen: screen) == TouchRegion(frame: screen, scale: 2))
+    }
 }

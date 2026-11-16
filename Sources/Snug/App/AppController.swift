@@ -152,17 +152,10 @@ final class AppController {
         syncGestures()
     }
 
-    /// 手势翻译只在手机屏在、并且开着手势时运行；范围跟着手机屏
+    /// 手势翻译只在手机屏在、并且开着手势时运行；范围跟着手机屏（换档、屏幕重排时 DisplayWatcher 也会调到这里）
     func syncGestures() {
-        let region = state.phone.display.map(CGDisplayBounds)
-        guard store.config.gestures, let region else {
-            if touch.isRunning { touch.stop() }
-            touch.setRegion(nil)
-            state.update(\.gesturesFailed, false)
-            return
-        }
-        touch.setRegion(region)
-        if !touch.isRunning { state.update(\.gesturesFailed, !touch.start()) }
+        let region = store.config.gestures ? state.phone.display.map { TouchRegion(phoneScreen: CGDisplayBounds($0)) } : nil
+        state.update(\.gesturesFailed, !touch.setRegion(region))
     }
 
     static func describe(_ t: SessionTransition) -> String {
