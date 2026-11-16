@@ -35,6 +35,8 @@ public final class PhoneDesk {
         public var quitting: Set<Int32> = []
         /// 已经请它关掉、还在等它关上的窗口
         public var closing: Set<WindowKey> = []
+        /// 在手机上退出了手机屏：这次远程不再加（见 dismissScreen）
+        public var dismissed = false
 
         public init() {}
 
@@ -94,6 +96,8 @@ public final class PhoneDesk {
         case zooming
         /// 正在把手机屏换成新手机的比例
         case reshaping
+        /// 在手机上退出了手机屏，正在放回窗口、撤屏
+        case dismissing
     }
 
     /// 屏幕配置一变，过这么久再检查一次（等系统折腾完）
@@ -178,8 +182,26 @@ public final class PhoneDesk {
     public func setWanted(_ on: Bool) {
         guard on != wanted else { return }
         wanted = on
-        if !on { cancelRetry() }
+        if !on {
+            cancelRetry()
+            // 退出手机屏只管这一次：不再要了（远程结束、关了开关），下次要时照常加
+            state.dismissed = false
+        }
         lane.run { await self.reconcile() }
+    }
+
+    /// 手机屏上的「退出手机屏」：放回窗口、撤掉手机屏，直到不再要手机屏（这次远程结束、关了开关）之前都不再加。
+    /// 没接显示器的 Mac 上，手机屏一出现系统就撤掉自己的默认屏，UU远程 里没有别的屏可切，靠它回到原来的画面（issue #8）。
+    /// 远程刚结束、屏还没撤完时点的不算：不然会挡掉下一次远程的手机屏
+    public func dismissScreen() {
+        guard wanted, !state.dismissed else { return }
+        state.dismissed = true
+        Log.info("手机上退出了手机屏：放回窗口、撤屏，这次远程不再加")
+        begin(.dismissing)
+        lane.run {
+            await self.reconcile()
+            self.state.work = nil
+        }
     }
 
     /// 把这个窗口放上手机屏（原来那个先放回原位）。正在退出的 App 的窗口不放：它退完会记住手机屏上那个窄位置
@@ -418,9 +440,10 @@ public final class PhoneDesk {
     // MARK: 加屏、撤屏
 
     private func reconcile() async {
-        if wanted, display == nil {
+        let on = wanted && !state.dismissed
+        if on, display == nil {
             await addScreen()
-        } else if !wanted, state.screen != .off {
+        } else if !on, state.screen != .off {
             await removeScreen()
         }
     }

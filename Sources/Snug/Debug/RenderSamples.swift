@@ -229,6 +229,8 @@ enum RenderSamples {
             phoneSample("phone-quitting") { s, _ in s.phone.quitting = [2] },
             phoneSample("phone-confirm-quit", confirming: .quit(2)) { _, _ in },
             phoneSample("phone-confirm-close", confirming: .close(windows[4].key)) { s, _ in s.phone.placed = placed },
+            phoneSample("phone-confirm-dismiss", confirming: .dismissScreen) { s, _ in s.phone.placed = placed },
+            phoneSample("phone-dismissing-dark", dark: true) { s, _ in s.phone.work = .dismissing },
             phoneSample("phone-closing-dark", dark: true) { s, _ in
                 s.phone.placed = placed
                 s.phone.closing = [windows[4].key]

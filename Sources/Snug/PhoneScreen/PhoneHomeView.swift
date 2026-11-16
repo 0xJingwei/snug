@@ -1,10 +1,11 @@
 // 手机屏上的「App 资源库」：盖住整块手机屏（连这块屏上的菜单栏一起），看起来像手机上的原生 App。
-// 顶部固定一行：左边返回键（放着窗口时才有，那一行一直留着，有没有返回键内容都不跳），右边「手机型号」；
+// 顶部固定一行：左边返回键（放着窗口时才有，那一行一直留着，有没有返回键内容都不跳），右边「退出手机屏」「手机型号」；
 // 标题和搜索框跟着列表滚走，分段控件「运行中 / 全部」滚到顶就停住、一直看得见，滚回顶部时页眉完整恢复。
 // - 运行中：在跑的 App，窗口挂在各自的 App 下（见 PhoneAppCard）。放着窗口时它的 App 单列在最上面「当前 App」，其余在「其他 App」
 // - 全部：本机所有 App 的图标网格，按字典序，正在运行的下方有圆点
 // - 搜索：见 PhoneSearchPage；手机型号：见 PhoneModelPage
-// - 正在打开、正在放、正在调整比例：整屏讲明是哪个 App、哪个窗口、哪台手机；出了问题：顶部写明出了什么事、怎么办
+// - 退出手机屏：页眉里再问一次，讲明窗口会还原、下次远程恢复
+// - 正在打开、正在放、正在调整比例、正在退出：整屏讲明是哪个 App、哪个窗口、哪台手机；出了问题：顶部写明出了什么事、怎么办
 // 每次回到列表、每次出了问题都从最上面看起。文字只用短词，图标全用 SF Symbols
 import AppKit
 import SnugCore
@@ -63,13 +64,16 @@ struct PhoneHomeView: View {
         var title: String { self == .running ? "运行中" : "全部" }
     }
 
-    /// 在等再点一下确认的：退出哪个 App、关哪个窗口。同一时刻只有一个；
+    /// 在等再点一下确认的：退出哪个 App、关哪个窗口、退出手机屏。同一时刻只有一个；
     /// 有了别的动作、换了页、收起了列表就作废，防误触要的是连着按两下
     enum Confirm: Equatable {
         case quit(Int32)
         case close(WindowKey)
+        case dismissScreen
     }
 
+    /// 退出手机屏的图标：右上角的按钮、确认卡和「正在退出」共用
+    static let dismissSymbol = "rectangle.portrait.and.arrow.forward"
     private static let top = "top"
     private var phone: PhoneDesk.State { state.phone }
 
@@ -113,9 +117,12 @@ struct PhoneHomeView: View {
                 .onChange(of: phone.listVisible) { _, visible in
                     if visible { proxy.scrollTo(Self.top, anchor: .top) }
                 }
-                // 提示在页眉里：翻到下面时出了问题，滚回去让人看见
+                // 提示和退出手机屏的确认都在页眉里：翻到下面时出了问题、点了退出，滚回去让人看见
                 .onChange(of: phone.notice) { _, notice in
                     if notice != nil { withAnimation { proxy.scrollTo(Self.top, anchor: .top) } }
+                }
+                .onChange(of: confirming) { _, asking in
+                    if asking == .dismissScreen { withAnimation { proxy.scrollTo(Self.top, anchor: .top) } }
                 }
             }
         }
@@ -129,19 +136,24 @@ struct PhoneHomeView: View {
                 BackButton(app: placed.window.app) { intents.returnToPlaced() }
             }
             Spacer(minLength: 12)
-            Button { pages.open(.phoneModel) } label: {
-                Image(systemName: "iphone.gen3")
-                    .font(PhoneStyle.headline.weight(.regular))
-                    .foregroundStyle(PhoneStyle.tint)
-                    // 图标贴右边距，和型号页的「完成」、搜索页的「取消」对齐
-                    .frame(width: PhoneStyle.touchTarget, height: PhoneStyle.touchTarget, alignment: .trailing)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("手机型号")
+            navButton(Self.dismissSymbol, label: "退出手机屏") { confirming = .dismissScreen }
+            navButton("iphone.gen3", label: "手机型号") { pages.open(.phoneModel) }
         }
         .frame(height: PhoneStyle.touchTarget)
         .padding(.horizontal, 20)
         .padding(.top, 12)
+    }
+
+    /// 顶部那一行右边的图标按钮。图标贴点按范围的右边，最右那个和型号页的「完成」、搜索页的「取消」对齐
+    private func navButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(PhoneStyle.headline.weight(.regular))
+                .foregroundStyle(PhoneStyle.tint)
+                .frame(width: PhoneStyle.touchTarget, height: PhoneStyle.touchTarget, alignment: .trailing)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(label)
     }
 
     private var header: some View {
@@ -151,7 +163,19 @@ struct PhoneHomeView: View {
                 SearchBar { Text("搜索 App").foregroundStyle(.secondary) }
             }
             .buttonStyle(PressableStyle())
-            if let notice = phone.notice { NoticeBanner(notice: notice, intents: intents) }
+            if confirming == .dismissScreen {
+                Banner(symbol: Self.dismissSymbol, tint: .red, headline: "退出手机屏？", detail: "窗口还原，下次远程时恢复") {
+                    HStack(spacing: 12) {
+                        PillButton(title: "取消") { confirming = nil }
+                        PillButton(title: "退出", destructive: true) {
+                            confirming = nil
+                            intents.dismissScreen()
+                        }
+                    }
+                }
+            } else if let notice = phone.notice {
+                NoticeBanner(notice: notice, intents: intents)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)
@@ -254,19 +278,34 @@ private struct NoticeBanner: View {
 
     var body: some View {
         let text = notice.text
+        Banner(symbol: "exclamationmark.circle.fill", tint: .orange, headline: text.headline, detail: text.detail) {
+            if case .quitStalled(let app, let pid) = notice {
+                HStack(spacing: 12) {
+                    PillButton(title: "稍后") { intents.dismissNotice() }
+                    PillButton(title: "强制退出", destructive: true) { intents.forceQuit(pid: pid, app: app) }
+                }
+            }
+        }
+    }
+}
+
+/// 页眉里的一张卡：图标、一句话、补充说明，下面可以带按钮（提示、退出手机屏的确认）
+private struct Banner<Actions: View>: View {
+    let symbol: String
+    let tint: Color
+    let headline: String
+    let detail: String?
+    @ViewBuilder let actions: Actions
+
+    var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+            Image(systemName: symbol).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 4) {
-                Text(text.headline).font(PhoneStyle.body.weight(.semibold))
-                if let detail = text.detail {
+                Text(headline).font(PhoneStyle.body.weight(.semibold))
+                if let detail {
                     Text(detail).font(PhoneStyle.body).foregroundStyle(.secondary)
                 }
-                if case .quitStalled(let app, let pid) = notice {
-                    HStack(spacing: 12) {
-                        PillButton(title: "稍后") { intents.dismissNotice() }
-                        PillButton(title: "强制退出", destructive: true) { intents.forceQuit(pid: pid, app: app) }
-                    }
-                }
+                actions
             }
         }
         .font(PhoneStyle.body)
@@ -314,9 +353,9 @@ private struct AllApps: View {
     }
 }
 
-// MARK: 正在打开、正在放、正在调整比例
+// MARK: 正在打开、正在放、正在调整比例、正在退出
 
-/// 整屏讲明正在打开哪个 App、放哪个窗口、按哪台手机调整比例。窗口挪好列表就收起，失败了回到列表、顶部写明原因
+/// 整屏讲明正在打开哪个 App、放哪个窗口、按哪台手机调整比例、在退出手机屏。窗口挪好列表就收起，失败了回到列表、顶部写明原因
 private struct BusyView: View {
     struct Content: Equatable {
         enum Art: Equatable {
@@ -339,6 +378,8 @@ private struct BusyView: View {
                                                   window.title.isEmpty ? nil : window.title, "正在打开")
             case .reshaping:
                 (art, title, subtitle, status) = (.symbol("iphone.gen3"), phone.title, phone.screen.sizeText, "正在调整屏幕比例")
+            case .dismissing:
+                (art, title, subtitle, status) = (.symbol(PhoneHomeView.dismissSymbol), PhoneScreenSpec.name, nil, "正在退出")
             default:
                 return nil
             }

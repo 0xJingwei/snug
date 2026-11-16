@@ -43,6 +43,7 @@ struct StatusText: Equatable {
             guard s.phoneInUse else { return "手机屏已就绪" }
             return s.phone.placed.map { "手机屏 · \($0.window.app)" } ?? "手机屏使用中"
         case .off:
+            if s.phone.dismissed { return "本次远程已退出手机屏" }
             return ControllerKind.wantsPhoneScreen(s.controllers) ? nil : "电脑控制端，不提供手机屏"
         }
     }

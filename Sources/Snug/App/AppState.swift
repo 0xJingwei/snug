@@ -96,6 +96,8 @@ protocol PhoneIntents: AnyObject {
     func putBack()
     func zoom(by delta: Int)
     func setPhone(_ phone: PhoneChoice)
+    /// 退出手机屏：这次远程不再显示（见 PhoneDesk.dismissScreen）
+    func dismissScreen()
 }
 
 /// 打开各个窗口

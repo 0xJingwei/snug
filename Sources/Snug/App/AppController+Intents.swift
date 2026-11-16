@@ -143,4 +143,5 @@ extension AppController: PhoneIntents {
     func returnToPlaced() { desk.returnToPlaced() }
     func putBack() { desk.putBack() }
     func zoom(by delta: Int) { desk.zoom(by: delta) }
+    func dismissScreen() { desk.dismissScreen() }
 }
