@@ -190,7 +190,8 @@ public final class PhoneDesk {
         lane.run { await self.reconcile() }
     }
 
-    /// 手机屏上的「退出手机屏」：放回窗口、撤掉手机屏，直到不再要手机屏（这次远程结束、关了开关）之前都不再加。
+    /// 手机屏上的「退出手机屏」：放回窗口、撤掉手机屏，直到不再要手机屏之前都不再加：这次远程结束、关了开关，
+    /// 或者几台同时连着时手机离开超过重连窗口、只剩电脑（手机再回来算下一次，照常加）。
     /// 没接显示器的 Mac 上，手机屏一出现系统就撤掉自己的默认屏，UU远程 里没有别的屏可切，靠它回到原来的画面（issue #8）。
     /// 远程刚结束、屏还没撤完时点的不算：不然会挡掉下一次远程的手机屏
     public func dismissScreen() {
@@ -457,6 +458,8 @@ public final class PhoneDesk {
             display = (id, timeline.now)
             failures = 0
             await windows.restore(before, except: placement?.window.key)
+            // 新屏从干净的提示开始：撤屏后才轮到的动作（比如盯着的退出排进队的放对话框）会在没屏时留下提示
+            state.notice = nil
             state.screen = .ready(id)
             Log.info("手机屏 #\(id) 已就绪（\(displays.width(id).map { "\($0) 宽" } ?? "不是 2 倍")）")
         } catch {

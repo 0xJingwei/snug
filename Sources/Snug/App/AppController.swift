@@ -118,7 +118,11 @@ final class AppController {
         lastTickAt = now
         refreshTrust()
         let sample = sensor.sample(now: Date())
-        for t in session.update(sample.signals, now: now) { Log.info("会话：\(Self.describe(t))") }
+        let transitions = session.update(sample.signals, now: now)
+        for t in transitions { Log.info("会话：\(Self.describe(t))") }
+        // 远程结束就是不要手机屏了。下一次在同一拍里开始时 wantsPhoneScreen 前后都是真，不先说一声「不要」，
+        // 上一次在手机上退出的手机屏会带进这一次。同一拍里先「不要」再「要」不会撤屏重建（PhoneDesk 排队时读的是最新结论）
+        if transitions.contains(.ended) { desk.setWanted(false) }
         desk.setWanted(wantsPhoneScreen)
         if now.timeIntervalSince(lastVerifyAt) >= Self.verifyInterval {
             lastVerifyAt = now

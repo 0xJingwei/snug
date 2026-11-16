@@ -53,6 +53,48 @@ struct PhoneDeskDismissTests {
         #expect(rig.desk.state.screen == .ready(102))
     }
 
+    @Test("上一次远程结束、下一次开始落在同一拍（AppController 先说「不要」再说「要」）：退出不带进下一次")
+    func episodeEndsAndBeginsInOneTick() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        rig.timeline.advance(10)
+        rig.desk.dismissScreen()
+        await rig.desk.idle()
+        rig.desk.setWanted(false)
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        #expect(!rig.desk.state.dismissed)
+        #expect(rig.desk.state.screen == .ready(102))
+    }
+
+    @Test("没退出时同一拍里先「不要」再「要」：手机屏不撤也不重建，放着的窗口照旧")
+    func falseThenTrueKeepsScreen() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        await rig.pull(ghostty)
+        rig.journal.clear()
+        rig.desk.setWanted(false)
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        #expect(rig.journal.all.isEmpty)
+        #expect(rig.desk.state.placed?.window == ghostty)
+    }
+
+    @Test("撤屏后才轮到的动作留下的提示（这里是排在退出后面的放窗口）：不带到下一次加的屏上")
+    func staleNoticeClearedOnNewScreen() async throws {
+        let rig = try Rig()
+        await rig.ready()
+        rig.timeline.advance(10)
+        rig.desk.dismissScreen()
+        rig.desk.pull(ghostty)
+        await rig.desk.idle()
+        #expect(rig.desk.state.notice == .screenNotReady)
+        rig.desk.setWanted(false)
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        #expect(rig.desk.state.notice == nil)
+    }
+
     @Test("远程刚结束、屏还没撤完时点了退出：不算数，下次远程照常加屏")
     func afterEpisodeEnded() async throws {
         let rig = try Rig()
