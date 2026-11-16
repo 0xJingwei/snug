@@ -1,6 +1,6 @@
 // 显示模式：读此刻是哪一档，以及帮手进程里真正去切（手机屏换档、把被 macOS 拨动的别的屏设回去）。
 // 主程序不亲自切模式：亲自切过模式的进程，这块虚拟屏释放后要拖 40 秒以上才下线（两次实测）；
-// 交给短命的帮手进程（Snug --set-mode）切完就退出，释放照样 0.1 秒下线
+// 交给短命的帮手进程（Snug --set-mode / --restore-mode）切完就退出，释放照样 0.1 秒下线
 import CoreGraphics
 import SnugCore
 
@@ -46,20 +46,20 @@ public enum DisplayMode {
         switch target {
         case .hiDPI(let width, let height):
             return modes.first { $0.width == width && $0.height == height && $0.pixelWidth == 2 * width }
-        case .exact(let mode):
-            return modes.first { ScreenMode($0) == mode }
+        case .exact(let mode, _):
+            // 属性相同的可能有好几档：挑回原来那个编号，编号重排了就挑能当桌面用的那一档
+            let same = modes.filter { ScreenMode($0).isSame(as: mode) }
+            return same.first { $0.ioDisplayModeID == mode.ioModeID } ?? same.first { $0.isUsableForDesktopGUI() } ?? same.first
         }
     }
 
-    /// 帮手进程里调用：把屏切到 target。
-    /// 手机屏换档只对本次登录生效。设回别的屏要连永久配置一起写：屏幕组合一变，WindowServer 把套用来的旧模式
-    /// 同时存进本次登录和永久配置（日志「Saving configuration: session, permanent store」），只设回本次登录，
-    /// 下次登录又是旧模式（实测：forSession 设回后，磁盘上那组屏幕记的仍是 30Hz）
+    /// 帮手进程里调用：把屏切到 target。手机屏换档只对本次登录生效；设回别的屏按 target 要求，
+    /// 连永久配置时写的是 WindowServer 的永久配置（屏幕组合一变，它会把套用来的旧模式存进去：日志「Saving configuration: session, permanent store」）
     public static func apply(_ target: ModeTarget, to id: DisplayID) -> Outcome {
         guard let mode = find(target, on: id) else { return .unavailable }
         let scope: CGConfigureOption = switch target {
         case .hiDPI: .forSession
-        case .exact: .permanently
+        case .exact(_, let permanently): permanently ? .permanently : .forSession
         }
         var config: CGDisplayConfigRef?
         let begin = CGBeginDisplayConfiguration(&config)

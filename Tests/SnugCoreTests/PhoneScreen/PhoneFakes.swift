@@ -42,6 +42,11 @@ final class FakeDisplays: PhoneDisplays {
     var others: [DisplayID: ScreenMode] = [:]
     /// 设模式不成（帮手失败）：屏还是被拨动后的模式
     var modeFails = false
+    /// 释放后不下线（显示器睡着时要等唤醒）：goOffline 才真下线，onRetire 那时才发生
+    var staysOnline = false
+    private(set) var lingering: Set<DisplayID> = []
+    /// 睡着的别的屏
+    var asleep: Set<DisplayID> = []
 
     init(journal: Journal) { self.journal = journal }
 
@@ -66,13 +71,26 @@ final class FakeDisplays: PhoneDisplays {
         return nextID
     }
 
-    func retire(_ id: DisplayID) async {
+    func retire(_ id: DisplayID) async -> Bool {
         journal.add("retire \(id)")
         retiredAt[id] = clock?()
         widths[id] = nil
         fits[id] = nil
+        guard !staysOnline else {
+            lingering.insert(id)
+            return false
+        }
+        onRetire?()
+        return true
+    }
+
+    /// 释放后迟迟没下线的屏这时下线（显示器醒了）
+    func goOffline(_ id: DisplayID) {
+        lingering.remove(id)
         onRetire?()
     }
+
+    func isOnline(_ id: DisplayID) -> Bool { widths[id] != nil || lingering.contains(id) }
 
     func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool {
         journal.add("reshape \(id) \(fit)")
@@ -107,10 +125,12 @@ final class FakeDisplays: PhoneDisplays {
     nonisolated static let main = CGRect(x: 0, y: 25, width: 1512, height: 957)
     func mainArea() -> CGRect? { Self.main }
 
-    func otherModes() -> [DisplayID: ScreenMode] { others }
+    func otherDisplays() -> [OtherDisplay] {
+        others.sorted { $0.key < $1.key }.map { OtherDisplay(id: $0.key, name: "屏 \($0.key)", mode: $0.value, asleep: asleep.contains($0.key)) }
+    }
 
-    func setMode(_ id: DisplayID, _ mode: ScreenMode) async {
-        journal.add("mode \(id) \(mode)")
+    func setMode(_ id: DisplayID, _ mode: ScreenMode, permanently: Bool) async {
+        journal.add("mode \(id) \(mode)\(permanently ? " 永久" : "")")
         guard !modeFails, others[id] != nil else { return }
         others[id] = mode
     }

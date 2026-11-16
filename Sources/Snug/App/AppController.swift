@@ -125,10 +125,12 @@ final class AppController {
         // 上一次在手机上退出的手机屏会带进这一次。同一拍里先「不要」再「要」不会撤屏重建（PhoneDesk 排队时读的是最新结论）
         if transitions.contains(.ended) { desk.setWanted(false) }
         desk.setWanted(wantsPhoneScreen)
+        desk.setRemote(session.inEpisode)
         if now.timeIntervalSince(lastVerifyAt) >= Self.verifyInterval {
             lastVerifyAt = now
             desk.verifyPlacement()
             desk.checkReturns()
+            desk.settleDisplays()
         }
         state.update(\.connection, session.isConnected ? .connected : (session.inEpisode ? .reconnecting : .idle))
         state.update(\.controllers, session.controllers)

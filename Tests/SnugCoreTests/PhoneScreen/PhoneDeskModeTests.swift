@@ -4,7 +4,7 @@ import Testing
 @testable import SnugCore
 
 // 加屏、撤屏不动别的屏的模式（issue #13）。macOS 按「这组屏幕」各记一份模式，屏幕组合一变就把别的屏拨回它给新组合记的那份：
-// UU 远程时把主屏临时切到 30Hz，系统给「没有手机屏的那组」记下 30Hz；撤手机屏时组合变回去，主屏就被拨回 30Hz
+// 远程期间主屏的模式被临时改过（报告人那里是 30Hz，谁改的未确认），系统记在「没有手机屏的那组」名下；撤手机屏时组合变回去，主屏就被拨回去
 
 private let redmi60 = ScreenMode(ioModeID: 12, width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 60)
 private let redmi30 = ScreenMode(ioModeID: 13, width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 30)
@@ -14,7 +14,7 @@ private let builtIn = ScreenMode(ioModeID: 54, width: 1512, height: 982, pixelWi
 @Suite("加屏、撤屏不动别的屏 PhoneDesk")
 @MainActor
 struct PhoneDeskModeTests {
-    @Test("撤屏时 macOS 把别的屏拨回它给这组屏幕记的模式（远程时临时切的 30Hz）：撤完设回撤屏前的样子，没被拨动的不碰")
+    @Test("远程结束后撤屏，macOS 把别的屏拨回它给这组屏幕记的模式（远程期间临时改的 30Hz）：先设回撤屏前的样子、连永久配置一起写，再放回窗口；没被拨动的不碰")
     func retireKeepsOtherModes() async throws {
         let rig = try Rig()
         rig.displays.others = [1: redmi60, 3: hp]
@@ -22,19 +22,111 @@ struct PhoneDeskModeTests {
         rig.displays.onRetire = { [unowned displays = rig.displays] in displays.others[1] = redmi30 }
         rig.desk.setWanted(false)
         await rig.desk.idle()
-        #expect(rig.journal.all == ["snapshot", "retire 101", "restore", "mode 1 \(redmi60)"])
+        #expect(rig.journal.all == ["snapshot", "retire 101", "mode 1 \(redmi60) 永久", "restore"])
         #expect(rig.displays.others == [1: redmi60, 3: hp])
     }
 
-    @Test("加屏时也一样：别的屏被拨回这组屏幕上次记的模式，加好后设回加屏前的样子（远程时 UU 正用着的 30Hz 也照旧）")
+    @Test("显示器睡着时（Mac 锁屏）撤的屏要等唤醒才下线：下线前不动，下线那一刻 macOS 才拨动别的屏，这时再设回、放回窗口")
+    func retireWaitsUntilOffline() async throws {
+        let rig = try Rig()
+        rig.displays.others = [1: redmi60]
+        await rig.ready()
+        rig.displays.staysOnline = true
+        rig.displays.onRetire = { [unowned displays = rig.displays] in displays.others[1] = redmi30 }
+        rig.desk.setWanted(false)
+        await rig.desk.idle()
+        #expect(rig.journal.all == ["snapshot", "retire 101"])
+        #expect(rig.desk.state.screen == .off)
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(rig.journal.all == ["snapshot", "retire 101"])
+
+        rig.displays.goOffline(101)
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(rig.journal.all == ["snapshot", "retire 101", "mode 1 \(redmi60) 永久", "restore"])
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(rig.journal.all.filter { $0.hasPrefix("mode") }.count == 1)
+    }
+
+    @Test("旧屏还没下线又加了屏：不再等它，它下线时不按旧的样子去设")
+    func newScreenSupersedesRetiring() async throws {
+        let rig = try Rig()
+        rig.displays.others = [1: redmi60]
+        await rig.ready()
+        rig.displays.staysOnline = true
+        rig.desk.setWanted(false)
+        await rig.desk.idle()
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        rig.displays.onRetire = { [unowned displays = rig.displays] in displays.others[1] = redmi30 }
+        rig.displays.goOffline(101)
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(!rig.journal.all.contains { $0.hasPrefix("mode") })
+    }
+
+    @Test("远程中撤屏（手机上退出手机屏）：撤屏前可能是远程用的临时模式，只对本次登录设回；远程结束、屏都醒着时，把别的屏此刻的模式写进永久配置")
+    func retireDuringRemotePersistsAfterwards() async throws {
+        let rig = try Rig()
+        rig.displays.others = [1: redmi30, 3: hp]
+        rig.desk.setRemote(true)
+        await rig.ready()
+        rig.displays.onRetire = { [unowned displays = rig.displays] in displays.others[1] = redmi60 }
+        rig.desk.dismissScreen()
+        await rig.desk.idle()
+        #expect(rig.journal.all.contains("mode 1 \(redmi30)"))
+        #expect(!rig.journal.all.contains { $0.hasSuffix("永久") })
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(!rig.journal.all.contains { $0.hasSuffix("永久") })
+
+        // 远程结束，UU 把主屏还原成 60Hz（只对本次登录）；屏还睡着时等着
+        rig.journal.clear()
+        rig.displays.others[1] = redmi60
+        rig.displays.asleep = [1, 3]
+        rig.desk.setRemote(false)
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(rig.journal.all.isEmpty)
+        rig.displays.asleep = []
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(rig.journal.all == ["mode 1 \(redmi60) 永久", "mode 3 \(hp) 永久"])
+        rig.desk.settleDisplays()
+        await rig.desk.idle()
+        #expect(rig.journal.all.count == 2)
+    }
+
+    @Test("加屏时也一样：别的屏被拨回这组屏幕上次记的模式，加好后设回加屏前的样子；远程中可能是临时模式，只对本次登录设回")
     func createKeepsOtherModes() async throws {
         let rig = try Rig()
         rig.displays.others = [1: redmi30, 3: hp]
         rig.displays.onCreate = { [unowned displays = rig.displays] in displays.others[1] = redmi60 }
         rig.desk.setWanted(true)
         await rig.desk.idle()
-        #expect(rig.journal.all == ["snapshot", "create", "restore", "mode 1 \(redmi30)"])
+        #expect(rig.journal.all == ["snapshot", "create", "mode 1 \(redmi30)", "restore"])
         #expect(rig.displays.others == [1: redmi30, 3: hp])
+    }
+
+    @Test("系统按分辨率、缩放、刷新率记模式，不记编号：编号重排了、属性没变不算拨动")
+    func renumberedIsSame() async throws {
+        let rig = try Rig()
+        rig.displays.others = [1: redmi60]
+        await rig.ready()
+        var renumbered = redmi60
+        renumbered.ioModeID = 99
+        rig.displays.onRetire = { [unowned displays = rig.displays] in displays.others[1] = renumbered }
+        rig.desk.setWanted(false)
+        await rig.desk.idle()
+        #expect(!rig.journal.all.contains { $0.hasPrefix("mode") })
+        #expect(redmi60.isSame(as: renumbered))
+        #expect(!redmi60.isSame(as: redmi30))
+        var hiDPI = redmi60
+        hiDPI.width = 1280
+        hiDPI.height = 720
+        #expect(!redmi60.isSame(as: hiDPI))
     }
 
     @Test("这期间拔掉的屏、新接上的屏都不碰；都没变就什么都不做")
@@ -68,7 +160,7 @@ struct PhoneDeskModeTests {
         rig.displays.onRetire = { [unowned displays = rig.displays] in displays.others[1] = redmi30 }
         rig.desk.setWanted(false)
         await rig.desk.idle()
-        #expect(rig.journal.all.contains("mode 1 \(redmi60)"))
+        #expect(rig.journal.all.contains("mode 1 \(redmi60) 永久"))
         #expect(rig.desk.state.screen == .off)
     }
 

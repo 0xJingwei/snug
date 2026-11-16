@@ -110,6 +110,8 @@ public final class PhoneDesk {
 
     /// 屏幕配置一变，过这么久再检查一次（等系统折腾完）
     static let recheckDelay: TimeInterval = 1.5
+    /// 屏幕组合变了（或刚设回别的屏的模式）等这么久，系统挪完窗口再放回
+    static let topologySettle: TimeInterval = 1
     /// 窗口挪好、字号改完后等这么久再动下一步：App 要一点时间认到新的大小
     static let settleDelay: TimeInterval = 0.3
     /// 加屏失败后隔多久重试；这几次都不成就不再试，直到不要了再要
@@ -159,7 +161,16 @@ public final class PhoneDesk {
     private let lane = SerialLane()
 
     private var wanted = false
+    /// 远程在不在进行（会话层的结论，含断开后等重连的那段）：这期间别的屏可能处在远程用的临时模式
+    private var remote = false
     private var display: (id: DisplayID, bornAt: TimeInterval)?
+    /// 撤掉了、还没真正下线的手机屏：下线那一刻 macOS 才挪窗口、拨别的屏。显示器睡着（Mac 锁屏）时释放的虚拟屏
+    /// 要等唤醒才下线（实测，可能是几小时后），等它真下线了再按撤屏前的样子放回（settleDisplays）
+    private var retiring: Retiring?
+    /// 远程中撤过屏：那时别的屏可能正处在远程用的临时模式，系统套用时连永久配置一起写了。
+    /// 远程结束（UU 已经还原）、手机屏不在、屏都醒着时，把别的屏此刻的模式写进永久配置
+    private var persistOwed = false
+    private var settling = false
     private var placement: Placement? {
         didSet {
             state.placed = placement.map { Placed(window: $0.window, zoom: $0.record.zoom) }
@@ -408,8 +419,10 @@ public final class PhoneDesk {
         }
     }
 
-    /// 屏幕配置变了（插拔外接屏、系统改模式、Snug 自己换档）：过一会儿检查手机屏还是不是该用的那一档、窗口还铺不铺满
+    /// 屏幕配置变了（插拔外接屏、系统改模式、Snug 自己换档、撤掉的屏真下线了）：过一会儿检查手机屏还是不是该用的那一档、
+    /// 窗口还铺不铺满；撤屏没办完的接着办
     public func displaysChanged() {
+        settleDisplays()
         guard display != nil else { return }
         recheckGeneration += 1
         let generation = recheckGeneration
@@ -443,6 +456,35 @@ public final class PhoneDesk {
                 self.state.listVisible = true
                 await self.matchWidth()
             }
+        }
+    }
+
+    /// 远程在不在进行（会话层的结论）。远程结束后，远程中撤屏留下的永久配置要重写（settleDisplays）
+    public func setRemote(_ on: Bool) {
+        guard on != remote else { return }
+        remote = on
+        if !on { settleDisplays() }
+    }
+
+    /// 定期调用、屏幕配置一变也调用：撤屏后手机屏真下线了，就放回窗口、设回别的屏；远程中撤过屏的，
+    /// 远程结束、屏都醒着时把别的屏此刻的模式写进永久配置。没事可做时什么都不做
+    public func settleDisplays() {
+        guard retiring != nil || persistOwed, !settling else { return }
+        settling = true
+        lane.run {
+            defer { self.settling = false }
+            if let r = self.retiring {
+                guard !self.displays.isOnline(r.id) else { return }
+                self.retiring = nil
+                Log.info("撤掉的手机屏 #\(r.id) 下线了")
+                await self.settle(r.before, after: "撤屏", permanently: r.permanently)
+            }
+            guard self.persistOwed, !self.remote, self.display == nil else { return }
+            let others = self.displays.otherDisplays()
+            guard !others.contains(where: \.asleep) else { return }
+            self.persistOwed = false
+            Log.info("远程中撤过屏，远程结束后把别的屏此刻的模式写进永久配置：\(others.map { "\($0.name) \($0.mode)" }.joined(separator: "、"))")
+            for other in others { await self.displays.setMode(other.id, other.mode, permanently: true) }
         }
     }
 
@@ -495,13 +537,18 @@ public final class PhoneDesk {
 
     private func addScreen() async {
         state.screen = .preparing
-        let before = await surroundings()
+        if let old = retiring {
+            retiring = nil
+            Log.warn("上一块手机屏 #\(old.id) 还没下线就又要加屏，不再等它：它下线时被挪动的窗口、被拨动的屏不会按撤屏前的样子放回")
+        }
+        let before = await surroundings(before: "加屏")
         onTopologyChange?()
         do {
             let id = try await displays.create(fit)
             display = (id, timeline.now)
             failures = 0
-            await restore(before, after: "加屏")
+            // 加屏在远程中：别的屏可能正处在远程用的临时模式，只对本次登录设回
+            await settle(before, after: "加屏", permanently: false)
             // 新屏从干净的提示开始：撤屏后才轮到的动作（比如盯着的退出排进队的放对话框）会在没屏时留下提示
             state.notice = nil
             state.screen = .ready(id)
@@ -557,37 +604,61 @@ public final class PhoneDesk {
         let age = timeline.now - bornAt
         if age < PhoneScreenSpec.minimumLifetime { await timeline.sleep(PhoneScreenSpec.minimumLifetime - age) }
         let gone = displays.bounds(id)
-        var before = await surroundings()
+        var before = await surroundings(before: "撤屏")
         onTopologyChange?()
-        await displays.retire(id)
+        let offline = await displays.retire(id)
         display = nil
         // 原本就在手机屏上的窗口（手机上新开的）交给系统安置：那块屏已经没了，放回原处只会落到屏幕外
         if let screen = gone { before.windows = before.windows.filter { !screen.contains(CGPoint(x: $0.value.midX, y: $0.value.midY)) } }
-        await restore(before, after: "撤屏")
+        // 远程结束后撤屏（UU 已经还原），撤屏前的样子就是用户自己的设置：系统套用旧模式时也写进了永久配置，
+        // 只设回本次登录，磁盘上那组屏幕记的还是旧模式（实测），所以连永久配置一起写回。
+        // 远程中撤屏，撤屏前可能是远程用的临时模式：只设回本次登录，远程结束后再写永久配置
+        if remote { persistOwed = true }
+        let pending = Retiring(id: id, before: before, permanently: !remote)
+        if offline {
+            await settle(pending.before, after: "撤屏", permanently: pending.permanently)
+        } else {
+            retiring = pending
+            Log.info("手机屏 #\(id) 还没下线（显示器睡着时要等唤醒），下线后再放回窗口、设回别的屏")
+        }
         Log.info("已撤掉手机屏 #\(id)")
     }
 
     /// 手机屏以外的一切：窗口在哪、别的屏是什么模式。macOS 一换屏幕组合就会动它们：把窗口挪来挪去，
-    /// 把别的屏拨回它给新的这组屏幕记的模式（UU 远程时临时切的 30Hz 就这样留在了主屏上，issue #13）。
+    /// 把别的屏拨回它给新的这组屏幕记的模式（远程期间主屏被临时改成 30Hz，撤屏时又被拨回 30Hz，issue #13）。
     /// 加屏、撤屏前记下，换完放回：Snug 的屏来去，别的都照旧
     private struct Surroundings {
         var windows: [WindowKey: CGRect]
-        var modes: [DisplayID: ScreenMode]
+        var others: [OtherDisplay]
     }
 
-    private func surroundings() async -> Surroundings {
-        Surroundings(windows: await windows.snapshot(), modes: displays.otherModes())
+    private struct Retiring {
+        var id: DisplayID
+        var before: Surroundings
+        var permanently: Bool
     }
 
-    /// 放回被挪动的窗口、被拨动的屏。这期间拔掉、新接上的屏不碰
-    private func restore(_ before: Surroundings, after change: String) async {
+    /// 记下来，别的屏的模式也写进日志：出了问题能分清是换屏幕组合时被拨动的，还是之前就是这样
+    private func surroundings(before change: String) async -> Surroundings {
+        let others = displays.otherDisplays()
+        Log.info("\(change)前别的屏：\(others.isEmpty ? "没有" : others.map { "\($0.name) \($0.mode)" }.joined(separator: "、"))")
+        return Surroundings(windows: await windows.snapshot(), others: others)
+    }
+
+    /// 屏幕组合换完（新屏上线、旧屏下线）后放回：先设回被拨动的屏（模式连分辨率一起变时会再挪窗口），
+    /// 等系统挪完，再放回被挪动的窗口。这期间拔掉、新接上的屏不碰
+    private func settle(_ before: Surroundings, after change: String, permanently: Bool) async {
+        await timeline.sleep(Self.topologySettle)
+        let now = Dictionary(displays.otherDisplays().map { ($0.id, $0.mode) }, uniquingKeysWith: { first, _ in first })
+        let drifted = before.others.compactMap { was in now[was.id].flatMap { $0.isSame(as: was.mode) ? nil : (was, $0) } }
+        if !drifted.isEmpty {
+            let detail = drifted.map { was, now in "\(was.name) \(was.mode) → \(now)" }.joined(separator: "、")
+            Log.info("\(change)时 macOS 把别的屏拨成了它给这组屏幕记的模式（\(detail)），设回\(change)前的样子")
+            onTopologyChange?()
+            for (was, _) in drifted { await displays.setMode(was.id, was.mode, permanently: permanently) }
+            await timeline.sleep(Self.topologySettle)
+        }
         await windows.restore(before.windows, except: placement?.window.key)
-        let now = displays.otherModes()
-        let drifted = before.modes.filter { id, mode in now[id].map { $0 != mode } ?? false }.sorted { $0.key < $1.key }
-        guard !drifted.isEmpty else { return }
-        Log.info("\(change)时 macOS 把 \(drifted.count) 块屏拨回了它给这组屏幕记的模式，设回\(change)前的样子")
-        onTopologyChange?()
-        for (id, mode) in drifted { await displays.setMode(id, mode) }
     }
 
     /// 把手机屏换成 fit 的比例（排在队里时又换了几次的，按最新的换）。

@@ -3,7 +3,7 @@
 // - 换比例在线换模式表（约 0.2 秒，屏不掉线、编号不变），系统随即跳到最宽一档，再切回基准宽度
 // - 系统上线时用它记着的那一档（第一次是最宽的），所以上线后切回基准宽度
 // - 换档交给帮手进程（主程序亲自切会让释放拖 40 秒以上）；把被 macOS 拨动的别的屏设回去也交给它
-// - 撤屏要等到真的下线：下线那一刻 macOS 才挪窗口、把别的屏拨回它给这组屏幕记的模式，早了放回去也白放
+// - 释放后通常 0.1 秒下线；显示器睡着（Mac 锁屏）时要等唤醒才下线，撤屏后的善后由 PhoneDesk 等它真下线再做
 // - 建好不上线就换备用身份
 // - 在主线程建和释放；释放时不能留局部强引用，否则不会真正释放
 import AppKit
@@ -13,10 +13,7 @@ import SnugCore
 @MainActor
 public final class PhoneDisplayService: PhoneDisplays {
     static let onlineTimeout: TimeInterval = 6
-    /// 释放后通常 0.1 秒下线；过了这么久还在就记一笔，接着等
     static let offlineTimeout: TimeInterval = 10
-    /// 最多等这么久（报告人那里有过 10 秒以上才下线的）
-    static let offlineGiveUp: TimeInterval = 60
     /// 帮手切模式最多等这么久（正常不到一秒）
     nonisolated static let helperTimeout: TimeInterval = 10
     /// 切完等界面（NSScreen）认到新尺寸最多这么久：可放区域按它算，认到之前算出来的还是旧尺寸
@@ -27,7 +24,7 @@ public final class PhoneDisplayService: PhoneDisplays {
     private var displays: [DisplayID: CGVirtualDisplay] = [:]
     /// 每块屏登记的是哪个比例的档位：换档时按它算高
     private var fits: [DisplayID: ScreenFit] = [:]
-    /// 帮手进程：就是 Snug 自己，带 --set-mode 运行
+    /// 帮手进程：就是 Snug 自己，带 --set-mode / --restore-mode 运行
     private let helper: URL
 
     public init(helper: URL) { self.helper = helper }
@@ -45,7 +42,7 @@ public final class PhoneDisplayService: PhoneDisplays {
             fits[id] = fit
             guard await wait(id, online: true, timeout: Self.onlineTimeout) else {
                 Log.warn("手机屏 #\(id)（serial=\(serial)）建好 \(Int(Self.onlineTimeout)) 秒没上线，换备用身份")
-                await retire(id)
+                _ = await retire(id)   // 没上线的屏，下没下线都换下一个身份
                 continue
             }
             // 刚上线时模式还在变，等它定下来再看是哪一档
@@ -56,25 +53,21 @@ public final class PhoneDisplayService: PhoneDisplays {
         throw madeAny ? PhoneScreenError.neverOnline : PhoneScreenError.createFailed
     }
 
-    public func retire(_ id: DisplayID) async {
+    public func retire(_ id: DisplayID) async -> Bool {
         guard displays[id] != nil else {
             Log.warn("要撤的手机屏 #\(id) 不是本进程建的")
-            return
+            return !Self.isOnline(id)
         }
         autoreleasepool { displays[id] = nil }
         fits[id] = nil
-        let released = ProcessInfo.processInfo.systemUptime
-        if await !wait(id, online: false, timeout: Self.offlineTimeout) {
-            Log.warn("手机屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线，接着等它下线")
-            if await wait(id, online: false, timeout: Self.offlineGiveUp - Self.offlineTimeout) {
-                Log.info("手机屏 #\(id) 释放 \(Int(ProcessInfo.processInfo.systemUptime - released)) 秒后下线")
-            } else {
-                Log.error("手机屏 #\(id) 释放 \(Int(Self.offlineGiveUp)) 秒后仍在线，不再等：它下线时 macOS 挪动的窗口、拨动的屏幕模式不会被放回")
-            }
+        guard await wait(id, online: false, timeout: Self.offlineTimeout) else {
+            Log.warn("手机屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线")
+            return false
         }
-        // 系统挪窗口要一点时间，等它挪完再给窗口拍对比
-        try? await Task.sleep(for: .seconds(1))
+        return true
     }
+
+    public func isOnline(_ id: DisplayID) -> Bool { Self.isOnline(id) }
 
     public func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool {
         guard let display = displays[id] else {
@@ -147,20 +140,16 @@ public final class PhoneDisplayService: PhoneDisplays {
         Screens.primary.map { Screens.axRect(fromAppKit: $0.visibleFrame) }
     }
 
-    public func otherModes() -> [DisplayID: ScreenMode] {
-        var modes: [DisplayID: ScreenMode] = [:]
-        for id in Self.onlineIDs() where displays[id] == nil {
-            modes[id] = DisplayMode.current(id)
+    public func otherDisplays() -> [OtherDisplay] {
+        Self.onlineIDs().filter { displays[$0] == nil }.compactMap { id in
+            DisplayMode.current(id).map { OtherDisplay(id: id, name: Screens.name(of: id), mode: $0, asleep: CGDisplayIsAsleep(id) != 0) }
         }
-        return modes
     }
 
-    public func setMode(_ id: DisplayID, _ mode: ScreenMode) async {
-        let was = DisplayMode.describe(id)
-        let status = await runHelper(id, .exact(mode))
-        if status == 0 {
-            Log.info("「\(Screens.name(of: id))」从 \(was) 设回 \(mode)")
-        } else {
+    /// 成功时帮手自己记一行（「[帮手] 切屏幕 …：已切换」）
+    public func setMode(_ id: DisplayID, _ mode: ScreenMode, permanently: Bool) async {
+        let status = await runHelper(id, .exact(mode, permanently: permanently))
+        if status != 0 {
             Log.warn("「\(Screens.name(of: id))」设不回 \(mode)（帮手退出码 \(status.map(String.init) ?? "启动失败")），现在 \(DisplayMode.describe(id))")
         }
     }

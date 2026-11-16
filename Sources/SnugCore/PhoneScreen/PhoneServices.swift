@@ -13,8 +13,10 @@ public protocol PhoneDisplays: AnyObject {
     func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool
     /// 这块屏登记的是哪个比例的档位（建屏或换比例时登记的）；不是这里建的返回 nil。选档只能在它的档位里选
     func fit(_ id: DisplayID) -> ScreenFit?
-    /// 释放，等它下线
-    func retire(_ id: DisplayID) async
+    /// 释放，等一会儿它下线；返回下线了没有。显示器睡着（Mac 锁屏）时释放的虚拟屏要等唤醒才下线
+    func retire(_ id: DisplayID) async -> Bool
+    /// 这块屏还在不在线（撤掉的屏真下线了没有）
+    func isOnline(_ id: DisplayID) -> Bool
     /// 此刻是哪一档（2 倍模式的宽度，点）；不是 2 倍、或屏不在了返回 nil
     func width(_ id: DisplayID) -> Int?
     /// 换到这一档的 2 倍模式（高按这块屏现在的比例），等界面认到新尺寸再返回。换不成只记日志：窗口照样能用，只是没铺满
@@ -25,10 +27,10 @@ public protocol PhoneDisplays: AnyObject {
     func windowArea(_ id: DisplayID) -> CGRect?
     /// 主屏的可放区域（辅助功能坐标）：原位落在手机屏上的窗口（App 记得上次在手机屏上），原位改记成在这里居中
     func mainArea() -> CGRect?
-    /// 别的屏（手机屏以外的）此刻的模式。加屏、撤屏前记下：macOS 一换屏幕组合，就把别的屏拨回它给新组合记的模式
-    func otherModes() -> [DisplayID: ScreenMode]
-    /// 把一块别的屏设回这个模式（交给帮手进程）。设不成只记日志
-    func setMode(_ id: DisplayID, _ mode: ScreenMode) async
+    /// 别的屏（手机屏以外的）此刻的样子。加屏、撤屏前记下：macOS 一换屏幕组合，就把别的屏拨回它给新组合记的模式
+    func otherDisplays() -> [OtherDisplay]
+    /// 把一块别的屏设回这个模式（交给帮手进程），permanently 时连永久配置一起写。设不成只记日志
+    func setMode(_ id: DisplayID, _ mode: ScreenMode, permanently: Bool) async
 }
 
 /// 窗口此刻的样子

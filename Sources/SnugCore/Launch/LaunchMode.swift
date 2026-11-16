@@ -30,8 +30,8 @@ public enum LaunchMode: Equatable, Sendable {
       --render-<界面> <目录>           把界面渲染成 PNG（界面：\(RenderTarget.allCases.map(\.rawValue).joined(separator: " / "))）
       --dump-uu                       打印从 UU远程 读到的表格行、控制端与屏幕
       --set-mode <屏幕编号> <宽> <高>   把手机屏换到这一档（点，2 倍）（主程序内部用）
-      --restore-mode <屏幕编号> <模式编号> <宽> <高> <像素宽> <像素高> <刷新率>
-                                      把一块屏原样设回这个模式（主程序内部用）
+      --restore-mode <屏幕编号> <模式编号> <宽> <高> <像素宽> <像素高> <刷新率> session|permanent
+                                      把一块屏设回这个模式，只对本次登录或连永久配置（主程序内部用）
     """
 
     public static func parse(_ arguments: [String]) throws -> LaunchMode {
@@ -74,9 +74,11 @@ public enum LaunchMode: Equatable, Sendable {
             return .setMode(display: try number(DisplayID.self), to: .hiDPI(width: try number(Int.self), height: try number(Int.self)))
         case "--restore-mode":
             let display = try number(DisplayID.self)
-            let mode = ScreenMode(ioModeID: try number(Int32.self, orZero: true), width: try number(Int.self), height: try number(Int.self),
+            let mode = ScreenMode(ioModeID: Int32(bitPattern: try number(UInt32.self, orZero: true)), width: try number(Int.self), height: try number(Int.self),
                                   pixelWidth: try number(Int.self), pixelHeight: try number(Int.self), refreshRate: try rate())
-            return .setMode(display: display, to: .exact(mode))
+            let scope = try value()
+            guard [ModeTarget.permanent, ModeTarget.session].contains(scope) else { throw LaunchModeError.invalidNumber(flag, scope) }
+            return .setMode(display: display, to: .exact(mode, permanently: scope == ModeTarget.permanent))
         default:
             throw LaunchModeError.unknownFlag(flag)
         }
