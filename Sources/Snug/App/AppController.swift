@@ -28,6 +28,7 @@ final class AppController {
     private let sensor = UUSensor()
     private var session = RemoteSession()
     private let touch = TouchTap()
+    private let desktopDisplays: DesktopDisplayService
     private var watcher: DisplayWatcher?
     private var tickTimer: Timer?
     private var lastTickAt: Date?
@@ -48,7 +49,8 @@ final class AppController {
         let apps = AppService()
         desk = PhoneDesk(displays: PhoneDisplayService(helper: helper), windows: windows, apps: apps, paths: paths,
                          defaultZoom: store.config.zoomSteps, fit: ScreenFit(phone: phone.screen))
-        desktopDesk = DesktopDesk(displays: DesktopDisplayService(helper: helper), windows: windows, paths: paths,
+        desktopDisplays = DesktopDisplayService(helper: helper)
+        desktopDesk = DesktopDesk(displays: desktopDisplays, windows: windows, paths: paths,
                                   screen: desktop.screen)
         catalog = AppCatalog(apps: apps, windows: windows)
         state.config = store.config
@@ -88,6 +90,7 @@ final class AppController {
     func start() {
         desk.onChange = { [weak self] phone in self?.phoneChanged(phone) }
         desk.onGone = { [weak self] gone in self?.catalog.forget(gone) }
+        touch.onCloseWindow = { [weak self] window in self?.desk.closePlaced(window: window) }
         desk.onTopologyChange = { [weak self] in
             guard let self else { return }
             session.noteSelfInducedChange(at: now)
@@ -149,16 +152,21 @@ final class AppController {
             desktopDesk.setWanted(false)
         }
         desk.setWanted(wantsPhoneScreen)
+        desktopDisplays.remote = session.inEpisode
         desktopDesk.setWanted(wantsDesktopScreen)
         let streamingDesktop = previewDesktop || (state.desktop.display != nil && sample.streamingDisplay == state.desktop.display)
         desktopDesk.setContext(
             streaming: streamingDesktop,
             excludedDisplays: state.phone.display.map { [$0] } ?? [],
             excludedWindows: state.phone.placed.map { [$0.window.key] } ?? [])
+        desk.setRemote(session.inEpisode)
         if now.timeIntervalSince(lastVerifyAt) >= Self.verifyInterval {
             lastVerifyAt = now
             desk.verifyPlacement()
             desktopDesk.syncWindows()
+            desk.checkReturns()
+            desk.settleDisplays()
+            desktopDisplays.settlePhysicalDisplays()
         }
         state.update(\.connection, session.isConnected ? .connected : (session.inEpisode ? .reconnecting : .idle))
         state.update(\.controllers, session.controllers)
@@ -199,7 +207,9 @@ final class AppController {
 
     /// 手势翻译只在手机屏在、并且开着手势时运行；范围跟着手机屏（换档、屏幕重排时 DisplayWatcher 也会调到这里），不干扰桌面屏和物理屏
     func syncGestures() {
-        let region = store.config.gestures ? state.phone.display.map { TouchRegion(phoneScreen: CGDisplayBounds($0)) } : nil
+        // 窗口露着时才拦它的关闭按钮：列表盖着时那个位置是列表
+        let closeButton = state.phone.listVisible ? nil : state.phone.closeButton
+        let region = store.config.gestures ? state.phone.display.map { TouchRegion(phoneScreen: CGDisplayBounds($0), closeButton: closeButton) } : nil
         state.update(\.gesturesFailed, !touch.setRegion(region))
     }
 

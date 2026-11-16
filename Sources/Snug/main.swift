@@ -18,17 +18,10 @@ case .render(let target, let output):
     exit(MainActor.assumeIsolated { Renderer.run(target, output: output) } ? 0 : 1)
 case .dumpUU:
     exit(MainActor.assumeIsolated { UUDump.run() })
-case .setMode(let display, let width, let height):
+case .setMode(let display, let target):
     Log.setSink(FileLogSink(url: SnugPaths.standard.logFile, processTag: "帮手"))
-    let outcome = DisplayMode.switchToHiDPI(display, width: width, height: height)
-    Log.info("切屏幕 #\(display) 到 2 倍 \(width)x\(height)：\(outcome)")
-    Log.flush()
-    exit(outcome == .switched ? 0 : 1)
-case .restoreMode(let display, let width, let height, let pixelWidth, let pixelHeight, let refreshRate):
-    Log.setSink(FileLogSink(url: SnugPaths.standard.logFile, processTag: "帮手"))
-    let outcome = DisplayMode.switchToExactMode(
-        display, width: width, height: height, pixelWidth: pixelWidth, pixelHeight: pixelHeight, refreshRate: refreshRate)
-    Log.info("恢复实体屏 #\(display) 到 \(width)x\(height)pt/\(pixelWidth)x\(pixelHeight)px：\(outcome)")
+    let outcome = DisplayMode.apply(target, to: display)
+    Log.info("切屏幕 #\(display) 到 \(target)：\(outcome)")
     Log.flush()
     exit(outcome == .switched ? 0 : 1)
 case .app, .previewPhone, .previewDesktop:

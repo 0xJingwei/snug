@@ -2,7 +2,8 @@
 // - 建屏时把 ScreenFit 的每一档都登记成模式，hiDPI 打开，maxPixels 框住所有比例：每一档都有 2 倍模式
 // - 换比例在线换模式表（约 0.2 秒，屏不掉线、编号不变），系统随即跳到最宽一档，再切回基准宽度
 // - 系统上线时用它记着的那一档（第一次是最宽的），所以上线后切回基准宽度
-// - 换档交给帮手进程（主程序亲自切会让释放拖 40 秒以上）
+// - 换档交给帮手进程（主程序亲自切会让释放拖 40 秒以上）；把被 macOS 拨动的别的屏设回去也交给它
+// - 释放后通常 0.1 秒下线；显示器睡着（Mac 锁屏）时要等唤醒才下线，撤屏后的善后由 PhoneDesk 等它真下线再做
 // - 建好不上线就换备用身份
 // - 在主线程建和释放；释放时不能留局部强引用，否则不会真正释放
 import AppKit
@@ -23,15 +24,12 @@ public final class PhoneDisplayService: PhoneDisplays {
     private var displays: [DisplayID: CGVirtualDisplay] = [:]
     /// 每块屏登记的是哪个比例的档位：换档时按它算高
     private var fits: [DisplayID: ScreenFit] = [:]
-    /// 建屏前拍下的实体显示器模式，撤屏时用来兜底核对
-    private var physicalSnapshots: [DisplayID: PhysicalDisplaySnapshot] = [:]
-    /// 帮手进程：就是 Snug 自己，带 --set-mode 运行
+    /// 帮手进程：就是 Snug 自己，带 --set-mode / --restore-mode 运行
     private let helper: URL
 
     public init(helper: URL) { self.helper = helper }
 
     public func create(_ fit: ScreenFit) async throws -> DisplayID {
-        let physicalBefore = PhysicalDisplaySnapshot.capture()
         var madeAny = false
         for serial in PhoneScreenSpec.serials {
             guard let display = make(serial: serial, fit: fit) else {
@@ -42,36 +40,34 @@ public final class PhoneDisplayService: PhoneDisplays {
             let id = display.displayID
             displays[id] = display
             fits[id] = fit
-            physicalSnapshots[id] = physicalBefore
             guard await wait(id, online: true, timeout: Self.onlineTimeout) else {
                 Log.warn("手机屏 #\(id)（serial=\(serial)）建好 \(Int(Self.onlineTimeout)) 秒没上线，换备用身份")
-                await retire(id)
+                _ = await retire(id)   // 没上线的屏，下没下线都换下一个身份
                 continue
             }
             // 刚上线时模式还在变，等它定下来再看是哪一档
             try? await Task.sleep(for: .seconds(0.8))
             if width(id) != fit.baseWidth { await setWidth(id, fit.baseWidth) }
-            await PhysicalDisplayGuard.restoreIfNeeded(physicalBefore, helper: helper)
             return id
         }
         throw madeAny ? PhoneScreenError.neverOnline : PhoneScreenError.createFailed
     }
 
-    public func retire(_ id: DisplayID) async {
+    public func retire(_ id: DisplayID) async -> Bool {
         guard displays[id] != nil else {
             Log.warn("要撤的手机屏 #\(id) 不是本进程建的")
-            return
+            return !Self.isOnline(id)
         }
-        let savedPhysical = physicalSnapshots.removeValue(forKey: id) ?? PhysicalDisplaySnapshot.capture()
         autoreleasepool { displays[id] = nil }
         fits[id] = nil
-        if await !wait(id, online: false, timeout: Self.offlineTimeout) {
+        guard await wait(id, online: false, timeout: Self.offlineTimeout) else {
             Log.warn("手机屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线")
+            return false
         }
-        // 系统挪窗口要一点时间，等它挪完再核对实体屏分辨率和窗口快照
-        try? await Task.sleep(for: .seconds(1))
-        await PhysicalDisplayGuard.restoreIfNeeded(savedPhysical, helper: helper)
+        return true
     }
+
+    public func isOnline(_ id: DisplayID) -> Bool { Self.isOnline(id) }
 
     public func reshape(_ id: DisplayID, to fit: ScreenFit) async -> Bool {
         guard let display = displays[id] else {
@@ -112,7 +108,7 @@ public final class PhoneDisplayService: PhoneDisplays {
         }
         let from = DisplayMode.describe(id)
         let size = fit.size(width: width)
-        let status = await runHelper(id, width: width, height: Int(size.height))
+        let status = await runHelper(id, .hiDPI(width: width, height: Int(size.height)))
         guard status == 0 else {
             Log.warn("手机屏 #\(id) 换不到 \(width) 宽（帮手退出码 \(status.map(String.init) ?? "启动失败")），现在 \(DisplayMode.describe(id))")
             return
@@ -142,6 +138,20 @@ public final class PhoneDisplayService: PhoneDisplays {
 
     public func mainArea() -> CGRect? {
         Screens.primary.map { Screens.axRect(fromAppKit: $0.visibleFrame) }
+    }
+
+    public func otherDisplays() -> [OtherDisplay] {
+        Self.onlineIDs().filter { displays[$0] == nil }.compactMap { id in
+            DisplayMode.current(id).map { OtherDisplay(id: id, name: Screens.name(of: id), mode: $0, asleep: CGDisplayIsAsleep(id) != 0) }
+        }
+    }
+
+    /// 成功时帮手自己记一行（「[帮手] 切屏幕 …：已切换」）
+    public func setMode(_ id: DisplayID, _ mode: ScreenMode, permanently: Bool) async {
+        let status = await runHelper(id, .exact(mode, permanently: permanently))
+        if status != 0 {
+            Log.warn("「\(Screens.name(of: id))」设不回 \(mode)（帮手退出码 \(status.map(String.init) ?? "启动失败")），现在 \(DisplayMode.describe(id))")
+        }
     }
 
     // MARK: 内部
@@ -188,20 +198,22 @@ public final class PhoneDisplayService: PhoneDisplays {
         return true
     }
 
-    private static func isOnline(_ id: DisplayID) -> Bool {
+    private static func isOnline(_ id: DisplayID) -> Bool { onlineIDs().contains(id) }
+
+    private static func onlineIDs() -> [DisplayID] {
         var count: UInt32 = 0
-        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return false }
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return false }
-        return ids.prefix(Int(count)).contains(id)
+        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return [] }
+        return Array(ids.prefix(Int(count)))
     }
 
-    /// 起帮手进程换档，等它退出；返回退出码，起不来返回 nil。
+    /// 起帮手进程切模式，等它退出；返回退出码，起不来返回 nil。
     /// 最多等 helperTimeout：帮手卡在屏幕配置里不退出，就结束它（换档本来就是尽力而为），不能让建屏和整条调度队一直等
-    private func runHelper(_ id: DisplayID, width: Int, height: Int) async -> Int32? {
+    private func runHelper(_ id: DisplayID, _ target: ModeTarget) async -> Int32? {
         let process = Process()
         process.executableURL = helper
-        process.arguments = ["--set-mode", "\(id)", "\(width)", "\(height)"]
+        process.arguments = target.arguments(display: id)
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
             do {

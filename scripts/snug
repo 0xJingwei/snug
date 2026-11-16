@@ -202,7 +202,7 @@ write_info_plist() {
 PLIST
 }
 
-# build/Snug.app：切模式的帮手进程就是 Snug 自己（带 --set-mode 运行），不另外打包
+# build/Snug.app：切模式的帮手进程就是 Snug 自己（带 --set-mode / --restore-mode 运行），不另外打包
 build_app() {
   local version; version="$(read_version)"
   step "编译（release，arm64 + x86_64）"
@@ -222,7 +222,11 @@ build_app() {
   step "签名：$(describe_identity)"
   sign "$APP"
   codesign --verify --strict --deep "$APP" || die "签名校验没过：$APP"
-  (( DEVELOPER_ID )) || warn "ad-hoc 签名：每次重新打包后辅助功能授权都会失效，也不能发给别人"
+  if [[ -z $IDENTITY ]]; then
+    warn "ad-hoc 签名：每次重新打包后辅助功能授权都会失效，也不能发给别人"
+  elif (( ! DEVELOPER_ID )); then
+    warn "开发证书签名：供本机使用，不能作为公证安装包分发"
+  fi
 }
 
 # App 装进 dmg：打开后左边是 Snug，右边是「应用程序」的替身，拖过去就装好

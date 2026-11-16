@@ -1,21 +1,20 @@
 ---
 name: project-release
-description: 发版只走 scripts/snug（照 SpeakMore 的 ship）；个人 Developer ID（29898YBGWD）签名公证；gh 绑定 zephyr4123；GitHub 与国内源两处发布
+description: 发版：只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123 且写明 -R；版本号与更新日志口径；分块的应用内更新；发版后不替主人装
 metadata:
   node_type: memory
   type: project
   originSessionId: f97709de-705a-489b-bb7a-7353b1fba51c
-  modified: 2026-11-14T14:10:00.000Z
+  modified: 2026-11-16T03:45:00.000Z
 ---
 
 - **一个入口**：构建、测试、打包、公证、发版都走 `scripts/snug`（check / app / install / dist / ship / mirror / media）。新步骤加成子命令或内部函数，不另起脚本。主人 11-13：「通过一行命令行就能去出包、去 release，千万别散在各处」。参照 SpeakMore（`~/coding/personal/reverse-anything`）的 ship：把关 → 检查 → 打包公证 → 上传 → 从下载地址核对 → 公开；断了只补没做完的那一步
 - **签名公证**：个人 Developer ID Application（Team ID 29898YBGWD，本机唯一一张）。notarytool 档案与 SpeakMore 共用，名字在不进 git 的 `.machine.env`；档案在数据保护钥匙串里，`security find-generic-password` 搜不到，别据此说没有。苹果回 403「A required agreement is missing」是开发者协议待签，要账号持有人去 developer.apple.com 签
-- **GitHub 账号**：本机 gh 登了多个账号，本项目用 `GH_CONFIG_DIR=~/.config/gh-zephyr4123` 绑定 zephyr4123（`.claude/settings.local.json` 和 `.machine.env` 里都有）。推送前 `gh api user --jq .login` 必须是 zephyr4123，不是就先停下。`scripts/snug` 导出了 `GH_REPO`：gh 不写明仓库时会挑 upstream，2.0.0 发版时差点发到原作者的仓库
-- **应用内更新**（2026-11-14 起）：dist 顺带用 `snug-release pack` 打 `Snug-<版本>.pack`，ship 用标签说明写 `update.json`，两处都传。分块更新是主人拍板的：差分补丁要按版本配对，主人嫌「产生一堆中间产物」，宁可多下一点（实测分块对 Snug 几乎不省流量，1.1 MB 对整包 1.2 MB），别再提差分。`firstUpdatable` = 2.1.0（Sources/SnugRelease）。2.1.0 于 2026-11-14 发布，本机实测从真实的腾讯云自更新：2.0.1 → 2.1.0 只取了 3 段 132 KB，换上的和正式 dmg 里的逐字节一致、Gatekeeper 认可
-- **本机实测更新**：别往 COS 传测试文件。临时把 `UpdateSource.tencentBase` 改成 `http://127.0.0.1:8765/snug`、VERSION 设成旧版本号 install；另打一个新版本号的 App，用临时本地标签跑 `snug-release pack/feed` 摆成国内源的目录，起一个支持 Range 的本地服务器；点「立即更新」后看日志和 Info.plist。测完 `git checkout` 还原、删临时标签、重装。SwiftUI 的按钮在辅助功能里没有标题，osascript 点 `last button of group 1 of window "软件更新"`（「立即更新」在最右）。2.1.0 实测时有一次按序号点完窗口没了、也没开始更新，日志里没有更新记录，第二次正常，原因未查明；下次有新版本时留意真机点击是否复现
-- **2.2.0**（屏幕适配，2026-11-14 发布）：主人只审更新日志，其余放手。日志措辞的偏好：讲用户得到什么（「全面适配所有 App」），不点名具体 App、不讲换分辨率之类的实现
-- **2.3.0**（App 资源库，2026-11-14 发布）：主人手机实测后全权交给合并、推送、清理、发版，更新日志按 2.2.0 的口径写。合并前把过程文档（设计记录）删掉、结论并进记忆，照 docs/PLAN.md 的先例。发版后**不替主人装正式版**：重新打开「应用程序」里的旧版，让它启动时弹「软件更新」，主人自己点（手动打开会顺带弹设置窗口，关掉它、留更新窗口）
-- **2.4.0**（手机型号定比例，2026-11-15 发布）：主人手机实测后让合并、推送、清理、发版一起做，并回复、关闭提这个建议的 issue #6
-- **2.4.1**（退出手机屏 + 手势翻译收口，2026-11-15 发布）：issue #8 的补救。主人定的版本号口径：x.y.0 发主打功能，x.y.z 修 issue 报的问题，即使带一个小入口也算热修复（同 2.0.1、2.2.1）。主人说「小补丁的功能」不用自己手测，发版后在 issue 里请报告人测
-- **README**（11-15 重组）：主线是原生体验（竖屏原生显示、原生手势）放最前，App 资源库、适配所有 App 与手机是它的延伸，别写成工作台；安卓按「全面支持」写，主人定的不收窄。手机截图都换成了 2.4 的（主人手机实拍，不用打码）；**还待换**：顶部中间的演示动图和高清视频仍是 2.2 的「窗口列表」，等做演示录制（[[project-demo-recording]]）时一起换。媒体走 `scripts/snug media`，中英文两份 README 一起改。17 Pro Max 截图原图 1320×2868，顶部 273 行是黑边：裁成 `crop=1320:2595:0:273,pad=1320:2598:0:0:black`（ffmpeg，sips 裁不动），和旧图一样 1320×2598，否则并排时高度对不齐（11-15 主人发现过）。Mac 端的设置页、欢迎页截图不用主人截，用 `.build/debug/Snug --render-settings <目录>`（`--render-welcome` 同理）渲染样例；调试版不在 App 包里，图标会变成文件夹、版本显示「开发版」，所以欢迎页、关于页用装好的正式版渲染（`/Applications/Snug.app/Contents/MacOS/Snug --render-about <目录>`，渲染参数在启动最前面处理完就退出，不碰正在跑的那份）。安装一节三张并排（欢迎页、设置、关于），都补到 1040×1096（设置、关于用同色 f6f6f6 上下补边）
-- 合并主干、推送、发版前照红线先问主人。gh 命令一律写明 `-R zephyr4123/snug`（只在 scripts/snug 里才有 GH_REPO，命令行直接跑会挑到 upstream）。国内源见 [[project-domestic-mirror]]
+- **GitHub 账号**：本机 gh 登了多个账号，本项目用 `GH_CONFIG_DIR=~/.config/gh-zephyr4123` 绑定 zephyr4123。推送和 gh 命令前 `gh api user --jq .login` 必须是 zephyr4123，不是就先停下。gh 命令一律写明 `-R zephyr4123/snug`：不写时会挑 upstream（只有 scripts/snug 里导出了 `GH_REPO`），2.0.0 发版时差点发到原作者的仓库
+- **版本号口径**（主人定）：x.y.0 发主打功能，x.y.z 修 issue 报的问题，即使带一个小入口也算热修复（2.0.1、2.2.1、2.4.1 都是）
+- **更新日志口径**：讲用户得到什么（「全面适配所有 App」），不点名具体 App、不讲换分辨率之类的实现。主人通常只审更新日志，其余放手
+- **主人的发版习惯**：合并主干、推送、发版前照红线先问；合并前把过程文档（设计记录）删掉、结论并进记忆；主人说是「小补丁」时不用自己手测，发版后在 issue 里请报告人测；发版后**不替主人装正式版**：从访达重新打开「应用程序」里的旧版（见 [[project-phone-screen]] 的「正式版只让访达开」），让它启动时弹「软件更新」，主人自己点；顺带弹出的设置窗口关掉，留更新窗口
+- **应用内更新**（2.1.0 起）：dist 顺带用 `snug-release pack` 打 `Snug-<版本>.pack`，ship 用标签说明写 `update.json`，GitHub 和国内源两处都传。按内容分块、不做差分补丁是主人拍板的：差分要按版本配对，主人嫌「产生一堆中间产物」，宁可多下一点（实测分块对 Snug 几乎不省流量），别再提差分。`firstUpdatable` = 2.1.0（Sources/SnugRelease）
+- **本机实测更新**：别往 COS 传测试文件。临时把 `UpdateSource.tencentBase` 改成 `http://127.0.0.1:8765/snug`、VERSION 设成旧版本号 install；另打一个新版本号的 App，用临时本地标签跑 `snug-release pack/feed` 摆成国内源的目录，起一个支持 Range 的本地服务器；点「立即更新」后看日志和 Info.plist。测完 `git checkout` 还原、删临时标签、重装。SwiftUI 的按钮在辅助功能里没有标题，osascript 点 `last button of group 1 of window "软件更新"`（「立即更新」在最右）
+
+国内源和 README 媒体见 [[project-domestic-mirror]]

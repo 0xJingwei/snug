@@ -15,13 +15,18 @@ public final class DesktopDisplayService: DesktopDisplays {
 
     private var displays: [DisplayID: CGVirtualDisplay] = [:]
     private var screens: [DisplayID: DesktopScreen] = [:]
-    private var physicalSnapshots: [DisplayID: PhysicalDisplaySnapshot] = [:]
     private let helper: URL
+    public var remote = false
+    private var persistOwed = false
+    private var settling = false
+    private var retiring: [DisplayID: (snapshot: PhysicalDisplaySnapshot, permanently: Bool)] = [:]
+    private var retiringInFlight: Set<DisplayID> = []
 
     public init(helper: URL) { self.helper = helper }
 
     public func create(_ screen: DesktopScreen) async throws -> DisplayID {
         let physicalBefore = PhysicalDisplaySnapshot.capture()
+        if remote { persistOwed = true }
         var madeAny = false
         for serial in DesktopScreenSpec.serials {
             guard let display = make(serial: serial, screen: screen) else {
@@ -32,7 +37,6 @@ public final class DesktopDisplayService: DesktopDisplays {
             let id = display.displayID
             displays[id] = display
             screens[id] = screen
-            physicalSnapshots[id] = physicalBefore
             guard await wait(id, online: true, timeout: Self.onlineTimeout) else {
                 Log.warn("桌面屏 #\(id)（serial=\(serial)）建好 \(Int(Self.onlineTimeout)) 秒没上线，换备用身份")
                 await retire(id)
@@ -40,7 +44,7 @@ public final class DesktopDisplayService: DesktopDisplays {
             }
             try? await Task.sleep(for: .seconds(0.8))
             if size(id) != screen { await setSize(id, screen) }
-            await PhysicalDisplayGuard.restoreIfNeeded(physicalBefore, helper: helper)
+            await PhysicalDisplayGuard.restoreIfNeeded(physicalBefore, helper: helper, permanently: false)
             return id
         }
         throw madeAny ? DesktopScreenError.neverOnline : DesktopScreenError.createFailed
@@ -51,14 +55,40 @@ public final class DesktopDisplayService: DesktopDisplays {
             Log.warn("要撤的桌面屏 #\(id) 不是本进程建的")
             return
         }
-        let savedPhysical = physicalSnapshots.removeValue(forKey: id) ?? PhysicalDisplaySnapshot.capture()
+        let savedPhysical = PhysicalDisplaySnapshot.capture()
+        let wasRemote = remote
+        if wasRemote { persistOwed = true }
+        retiringInFlight.insert(id)
+        defer { retiringInFlight.remove(id) }
         autoreleasepool { displays[id] = nil }
         screens[id] = nil
         if await !wait(id, online: false, timeout: Self.offlineTimeout) {
             Log.warn("桌面屏 #\(id) 释放 \(Int(Self.offlineTimeout)) 秒后仍在线")
+            retiring[id] = (savedPhysical, !wasRemote)
+            return
         }
         try? await Task.sleep(for: .seconds(1))
-        await PhysicalDisplayGuard.restoreIfNeeded(savedPhysical, helper: helper)
+        await PhysicalDisplayGuard.restoreIfNeeded(savedPhysical, helper: helper, permanently: !wasRemote)
+    }
+
+    /// 远程结束、桌面屏真正下线后补永久配置；锁屏时保留欠账，等唤醒再做。
+    public func settlePhysicalDisplays() {
+        guard !settling, retiringInFlight.isEmpty,
+              !retiring.isEmpty || (persistOwed && !remote && displays.isEmpty) else { return }
+        settling = true
+        Task {
+            defer { settling = false }
+            for (id, saved) in retiring where !Self.isOnline(id) {
+                retiring[id] = nil
+                await PhysicalDisplayGuard.restoreIfNeeded(saved.snapshot, helper: helper, permanently: saved.permanently)
+            }
+            guard persistOwed, !remote, displays.isEmpty, retiring.isEmpty, retiringInFlight.isEmpty else { return }
+            if await PhysicalDisplayGuard.persistCurrent(helper: helper, allowed: {
+                !self.remote && self.displays.isEmpty && self.retiring.isEmpty && self.retiringInFlight.isEmpty
+            }) {
+                persistOwed = false
+            }
+        }
     }
 
     public func reshape(_ id: DisplayID, to screen: DesktopScreen) async -> Bool {

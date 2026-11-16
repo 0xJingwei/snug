@@ -144,6 +144,30 @@ private final class DesktopRig {
 @Suite("桌面屏调度 DesktopDesk")
 @MainActor
 struct DesktopDeskTests {
+    @Test("手动还原后停留在桌面屏不会重新聚拢，切走再切回来才聚拢")
+    func manualRestoreWaitsForActualScreenSwitch() async throws {
+        let rig = try DesktopRig()
+        rig.desk.setWanted(true)
+        await rig.desk.idle()
+        rig.desk.setContext(streaming: true)
+        await rig.desk.idle()
+        #expect(rig.desk.state.gathered)
+
+        rig.desk.restoreWindows()
+        await rig.desk.idle()
+        for _ in 0..<3 {
+            rig.desk.setContext(streaming: true)
+            rig.desk.syncWindows()
+            await rig.desk.idle()
+            #expect(!rig.desk.state.gathered)
+            #expect(rig.windows.window(rig.codeWin.key)?.frame == rig.codeOrigin)
+        }
+        rig.desk.setContext(streaming: false)
+        rig.desk.setContext(streaming: true)
+        await rig.desk.idle()
+        #expect(rig.desk.state.gathered)
+    }
+
     @Test("刚连上未选桌面屏：建屏并保护物理屏窗口不被系统挪乱，但绝不提前聚拢窗口")
     func readyWithoutMovingWindowsUntilSelected() async throws {
         let rig = try DesktopRig()

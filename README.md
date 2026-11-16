@@ -1,3 +1,5 @@
+> 本 Fork 的 `feat/desktop-screen` 分支包含电脑远控的多屏窗口聚拢、分辨率保护，并关闭启动更新弹窗。安装与后续跟进官方版本见 [自用分支说明](docs/local-fork.md)。下方保留官方项目介绍和下载入口。
+
 <div align="center">
 
 **简体中文** · [English](README.en.md)
@@ -175,6 +177,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 
 - **只改动手机屏**：不更改主显示器，不关闭任何屏幕，不触碰其他窗口；不切换至手机屏时，UU远程 与原版完全一致
 - **先记录，后改动**：窗口的原始位置与字号先行记录，Snug 意外退出后也能还原
+- **窗口被直接关掉也能还原**：在手机上直接关掉的窗口，App 下次带着手机屏上的大小打开时，自动放回原位、缩回字号
 - **无响应时保持原状**：App 暂时无响应时不强行移动窗口，并在屏上说明原因
 - **不收集数据**：除检查更新外不连接任何服务器，不收集任何数据
 
@@ -186,6 +189,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 | 仅提供竖屏 | 平板横向使用时为 UU远程 原版体验；平板横屏在后续计划中 |
 | 非网易官方软件 | 与 UU远程 及其开发商无关；UU远程 更新后部分功能可能受影响 |
 | 远程结束后手机屏偶尔未移除 | 推流停止未被系统日志记录时出现，菜单栏仍显示「远程中」；在设置中关闭手机屏即可还原 |
+| VS Code、Cursor 窗口在手机上用快捷键或菜单关闭后，字号可能被记住 | 远程结束后重新打开时若字号偏大，按 ⌘- 复原（关闭当时手机屏上会提示级数）；开着手势时轻点窗口的关闭按钮，或在 App 资源库中关闭，则不受影响 |
 | 未接显示器的 Mac 上切不回原来的屏幕 | macOS 只在没有任何显示器时提供默认屏幕，手机屏出现后即被撤下；在 App 资源库右上角退出手机屏即可回到原来的画面 |
 
 各项限制的成因见 [工作原理](docs/how-it-works.md#已知限制的技术原因)。
@@ -225,6 +229,10 @@ scripts/snug install   # 构建、安装并打开
 - [FreeDisplay](https://github.com/huberdf/FreeDisplay)（MIT）：huberdf，`CGVirtualDisplay` 接口声明
 - 社区 PR 作者：bubble、gencheng liu、Rongzheng Liu（#10，全屏桌面空间下读取 UU远程 窗口）
 - 虚拟屏的实现参考了 [DeskPad](https://github.com/Stengo/DeskPad)、[Side Screen](https://github.com/tranvuongquocdat/SideScreen) 与 Chromium 的相关代码
+
+## ⭐ Star 趋势
+
+<p align="center"><a href="https://www.star-history.com/#zephyr4123/snug&Date"><picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=zephyr4123/snug&type=Date&theme=dark"><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=zephyr4123/snug&type=Date"><img src="https://api.star-history.com/svg?repos=zephyr4123/snug&type=Date" width="80%" alt="Snug 的 GitHub Star 数随时间的变化"></picture></a></p>
 
 ## 📄 许可证
 

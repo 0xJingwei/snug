@@ -9,11 +9,17 @@ import SnugCore
 public struct PhysicalDisplaySnapshot: Sendable {
     public struct Entry: Equatable, Sendable {
         public var id: DisplayID
+        public var ioModeID: Int32
         public var width: Int
         public var height: Int
         public var pixelWidth: Int
         public var pixelHeight: Int
-        public var refreshRate: Int
+        public var refreshRate: Double
+
+        var mode: ScreenMode {
+            ScreenMode(ioModeID: ioModeID, width: width, height: height,
+                       pixelWidth: pixelWidth, pixelHeight: pixelHeight, refreshRate: refreshRate)
+        }
     }
 
     public var entries: [DisplayID: Entry]
@@ -34,11 +40,12 @@ public struct PhysicalDisplaySnapshot: Sendable {
             guard let mode = CGDisplayCopyDisplayMode(id) else { continue }
             map[id] = Entry(
                 id: id,
+                ioModeID: mode.ioDisplayModeID,
                 width: mode.width,
                 height: mode.height,
                 pixelWidth: mode.pixelWidth,
                 pixelHeight: mode.pixelHeight,
-                refreshRate: Int(mode.refreshRate.rounded())
+                refreshRate: mode.refreshRate
             )
         }
         return PhysicalDisplaySnapshot(entries: map)
@@ -50,11 +57,7 @@ public struct PhysicalDisplaySnapshot: Sendable {
         var drifted: [Entry] = []
         for (id, saved) in entries {
             guard let current = now[id] else { continue }
-            if current.width != saved.width
-                || current.height != saved.height
-                || current.pixelWidth != saved.pixelWidth
-                || current.pixelHeight != saved.pixelHeight
-            {
+            if !current.mode.isSame(as: saved.mode) {
                 drifted.append(saved)
             }
         }
@@ -67,12 +70,12 @@ public enum PhysicalDisplayGuard {
 
     /// 把被系统改掉模式的实体显示器逐块切回快照里的原始模式
     @MainActor
-    public static func restoreIfNeeded(_ snapshot: PhysicalDisplaySnapshot, helper: URL) async {
+    public static func restoreIfNeeded(_ snapshot: PhysicalDisplaySnapshot, helper: URL, permanently: Bool) async {
         let drifted = snapshot.driftedDisplays()
         guard !drifted.isEmpty else { return }
         for entry in drifted {
             let before = DisplayMode.describe(entry.id)
-            let status = await runHelper(helper: helper, entry: entry)
+            let status = await runHelper(helper: helper, entry: entry, permanently: permanently)
             if status == 0 {
                 Log.info("实体屏 #\(entry.id) 分辨率被系统改动（\(before)），已恢复为 \(entry.width)x\(entry.height)pt/\(entry.pixelWidth)x\(entry.pixelHeight)px")
             } else {
@@ -81,19 +84,25 @@ public enum PhysicalDisplayGuard {
         }
     }
 
+    /// UU 结束后才把此刻模式写回永久配置，避免保存远程期间的临时刷新率。
     @MainActor
-    private static func runHelper(helper: URL, entry: PhysicalDisplaySnapshot.Entry) async -> Int32? {
+    public static func persistCurrent(helper: URL, allowed: @MainActor () -> Bool) async -> Bool {
+        let snapshot = PhysicalDisplaySnapshot.capture()
+        guard !snapshot.entries.isEmpty,
+              snapshot.entries.keys.allSatisfy({ CGDisplayIsAsleep($0) == 0 }) else { return false }
+        for entry in snapshot.entries.values.sorted(by: { $0.id < $1.id }) {
+            guard allowed() else { return false }
+            guard await runHelper(helper: helper, entry: entry, permanently: true) == 0 else { return false }
+        }
+        Log.info("桌面远程已结束，实体屏当前模式已写回永久配置")
+        return true
+    }
+
+    @MainActor
+    private static func runHelper(helper: URL, entry: PhysicalDisplaySnapshot.Entry, permanently: Bool) async -> Int32? {
         let process = Process()
         process.executableURL = helper
-        process.arguments = [
-            "--restore-mode",
-            "\(entry.id)",
-            "\(entry.width)",
-            "\(entry.height)",
-            "\(entry.pixelWidth)",
-            "\(entry.pixelHeight)",
-            "\(max(entry.refreshRate, 0))",
-        ]
+        process.arguments = ModeTarget.exact(entry.mode, permanently: permanently).arguments(display: entry.id)
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
             do {

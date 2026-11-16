@@ -122,7 +122,6 @@ public final class DesktopDesk {
     /// 手动把聚拢的窗口提前归位（不断开远控、不撤桌面屏；之后再切回桌面屏可再次触发聚拢）
     public func restoreWindows() {
         guard state.gathered || !records.isEmpty else { return }
-        streaming = false
         lane.run {
             await self.restoreAll()
             self.state.gathered = false
