@@ -15,9 +15,9 @@ extension UpdateState {
         }
         if let problem { return problem.text }
         return switch check {
-        case .unknown: Updater.current == nil ? "开发版不检查更新" : "尚未检查"
+        case .unknown: Updater.current == nil ? "开发版不检查更新" : "自动更新已关闭"
         case .upToDate: "已是最新"
-        case .available(let feed): "新版本 \(feed.version)"
+        case .available(let feed): "上游有新版 \(feed.version)"
         }
     }
 }

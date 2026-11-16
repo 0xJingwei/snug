@@ -86,7 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startMonitoring() {
         controller.start()
         controller.refreshLaunchAtLogin()
-        controller.updater.check(userInitiated: false, waitForNetwork: launchedAtLogin)
         let updated = controller.recordVersion()
         if !controller.state.config.welcomed {
             if !controller.state.launchAtLogin { controller.setLaunchAtLogin(true) }
