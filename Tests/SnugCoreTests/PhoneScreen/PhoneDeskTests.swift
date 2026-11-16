@@ -10,7 +10,7 @@ struct PhoneDeskTests {
     func addScreen() async throws {
         let rig = try Rig()
         // macOS 会把上次留在这块屏上的窗口拉过去
-        rig.displays.onCreate = { rig.windows.setFrame(finder.key, phoneArea) }
+        rig.displays.onCreate = { [windows = rig.windows] in windows.setFrame(finder.key, phoneArea) }
         rig.desk.setWanted(true)
         await rig.desk.idle()
         #expect(rig.journal.all == ["snapshot", "create", "restore"])
@@ -502,9 +502,9 @@ struct PhoneDeskTests {
         await rig.ready()
         rig.windows.setFrame(finder.key, phoneArea)          // 手机上新开的窗口
         let mainSpot = CGRect(x: 100, y: 100, width: 540, height: 897)
-        rig.displays.onRetire = {
-            rig.windows.setFrame(finder.key, mainSpot)       // 系统把它挪到主屏
-            rig.windows.setFrame(ghostty.key, phoneArea)     // 别的窗口被系统挪乱
+        rig.displays.onRetire = { [windows = rig.windows] in
+            windows.setFrame(finder.key, mainSpot)           // 系统把它挪到主屏
+            windows.setFrame(ghostty.key, phoneArea)         // 别的窗口被系统挪乱
         }
         rig.timeline.advance(10)
         rig.desk.setWanted(false)
