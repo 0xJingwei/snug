@@ -157,6 +157,19 @@ public final class WindowService: WindowControl {
         }
     }
 
+    public func frames(of pid: Int32) async -> [WindowKey: CGRect] {
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        var frames: [WindowKey: CGRect] = [:]
+        for info in list ?? [] where (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid
+            && (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 {
+            guard let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary) else { continue }
+            frames[WindowKey(pid: pid, id: id)] = frame
+        }
+        return frames
+    }
+
     public func closeButton(_ window: WindowKey) async -> CGRect? {
         await run {
             guard let element = AX.element(for: window),

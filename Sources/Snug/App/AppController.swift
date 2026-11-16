@@ -77,7 +77,7 @@ final class AppController {
     func start() {
         desk.onChange = { [weak self] phone in self?.phoneChanged(phone) }
         desk.onGone = { [weak self] gone in self?.catalog.forget(gone) }
-        touch.onCloseWindow = { [weak self] in self?.desk.closePlaced() }
+        touch.onCloseWindow = { [weak self] window in self?.desk.closePlaced(window: window) }
         desk.onTopologyChange = { [weak self] in
             guard let self else { return }
             session.noteSelfInducedChange(at: now)

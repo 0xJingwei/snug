@@ -7,7 +7,7 @@
 import Foundation
 
 /// 放大的字号存在哪（2026-11 读各 App 源码、实测 VS Code 确认）
-public enum ZoomScope: String, Codable, Sendable {
+public enum ZoomScope: Sendable {
     /// 只在开着的窗口里（Ghostty：每个窗格各一份）。窗口没了就没了，退出后恢复的窗口也不带；
     /// 只有关窗后几秒内「撤销关闭」恢复的窗口还带着（同一个进程里）
     case liveWindow

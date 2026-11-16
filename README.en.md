@@ -187,7 +187,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 | Portrait only | A tablet held in landscape gets the standard UU Remote experience; landscape support for tablets is planned |
 | Not an official NetEase product | Unaffiliated with UU Remote or its developer; UU Remote updates may affect some features |
 | The phone screen may occasionally remain after a session ends | Occurs when the system log misses the end of the stream; the menu bar still shows the session as active (「远程中」). Turn off the phone screen in Settings to restore |
-| VS Code and Cursor may remember the enlarged text size if a window is closed on the phone with a shortcut or menu | If the text looks too large when you reopen it after the session, press ⌘- to restore it (the phone screen shows how many steps when the window closes). Tapping the window's own close button or closing it from the app library is not affected |
+| VS Code and Cursor may remember the enlarged text size if a window is closed on the phone with a shortcut or menu | If the text looks too large when you reopen it after the session, press ⌘- to restore it (the phone screen shows how many steps when the window closes). With gestures on, tapping the window's own close button, or closing it from the app library, is not affected |
 | On a Mac with no display attached, you can't switch back to the original screen | macOS provides a default screen only when no display is connected, and removes it as soon as the phone screen appears. Exit the phone screen from the top right of the app library to get the original screen back |
 
 The technical reasons behind each limitation are explained in [How It Works](docs/how-it-works.md#已知限制的技术原因) (in Chinese).

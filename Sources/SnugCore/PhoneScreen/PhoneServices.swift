@@ -71,6 +71,8 @@ public protocol WindowControl: Sendable {
     func close(_ window: WindowKey) async -> Bool
     /// 窗口关闭按钮的位置（全局坐标，左上原点）；没有关闭按钮、读不到返回 nil
     func closeButton(_ window: WindowKey) async -> CGRect?
+    /// 这个进程此刻在屏上的普通窗口的位置：问窗口服务器，不经过 App，App 卡住、没有权限都不影响
+    func frames(of pid: Int32) async -> [WindowKey: CGRect]
     /// 当前桌面空间里普通窗口此刻的位置。加屏、撤屏前拍一张：macOS 会把窗口挪来挪去
     func snapshot() async -> [WindowKey: CGRect]
     /// 把位置变了的窗口放回快照里的位置（except 那个除外）

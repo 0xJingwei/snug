@@ -20,7 +20,7 @@ public struct LeftBehind: Codable, Equatable, Sendable {
     }
 
     /// 字号存在哪；名单外的 App 没调过字号，为 nil
-    public var zoomScope: ZoomScope? { ZoomBook.scope(of: record.bundleID) }
+    var zoomScope: ZoomScope? { ZoomBook.scope(of: record.bundleID) }
 
     /// 窗口回来了（编号可能换了）：按回来的窗口改写还原记录，字号只算随窗口一起回来的那几级
     public func returned(as key: WindowKey) -> PhoneRecord {
@@ -36,7 +36,7 @@ public struct LeftBehind: Codable, Equatable, Sendable {
         case .restoredWindow?, .workspace?: true
         // 退出后恢复的窗口不带；只有同一个进程里「撤销关闭」恢复的还带着
         case .liveWindow?: pid == record.window.pid
-        // 整个 App 共用的，关窗时已经从别的窗口缩回（缩不回的提示过用户），账上不再欠
+        // 整个 App 共用的不看是哪个窗口回来，按进程另外还（PhoneDesk.repayAppWideZoom）
         case .app?, nil: false
         }
     }
@@ -68,16 +68,25 @@ public struct LeftBehindBook: Codable, Equatable, Sendable {
         if entries.count > Self.limit { entries.removeFirst(entries.count - Self.limit) }
     }
 
+    /// 这个 App 有没有哪笔账在等这个大小的窗口回来（先用窗口服务器给的大小筛，对上了再读辅助功能）
+    public func awaits(bundleID: String, size: CGSize) -> Bool {
+        entries.contains { $0.record.bundleID == bundleID && Self.isFilled($0, size: size) }
+    }
+
     /// 这个窗口是不是哪一笔账的窗口原样回来了：同一个 App、带着 Snug 铺成的大小。
-    /// 同一个 App 留下好几笔时，先认同一个窗口（编号没变：App 只是藏起来又显示），再认标题，都没有就认最近的一笔
+    /// 同一个 App 留下好几笔时，先认同一个窗口（编号没变：App 只是藏起来又显示），再认标题，都没有就认任意一笔；
+    /// 每一层都取最近的：同一个窗口、同一个工作区后来又留下的账，才是它现在实际欠的
     public func match(_ window: WindowInfo, frame: CGRect) -> Int? {
-        let candidates = entries.indices.filter { i in
-            let r = entries[i].record
-            guard let bundle = r.bundleID, bundle == window.bundleID, let filled = r.filled else { return false }
-            return abs(filled.width - frame.width) < 2 && abs(filled.height - frame.height) < 2
-        }
-        return candidates.first { entries[$0].record.window == window.key }
-            ?? candidates.first { entries[$0].record.title == window.title }
-            ?? candidates.max { entries[$0].since < entries[$1].since }
+        let candidates = entries.indices.filter { entries[$0].record.bundleID == window.bundleID && Self.isFilled(entries[$0], size: frame.size) }
+        let newest = { (picked: [Int]) in picked.max { entries[$0].since < entries[$1].since } }
+        return newest(candidates.filter { entries[$0].record.window == window.key })
+            ?? newest(candidates.filter { entries[$0].record.title == window.title })
+            ?? newest(candidates)
+    }
+
+    /// 大小差一两点也算（App 会把尺寸取整）
+    private static func isFilled(_ entry: LeftBehind, size: CGSize) -> Bool {
+        guard let filled = entry.record.filled else { return false }
+        return abs(filled.width - size.width) < 2 && abs(filled.height - size.height) < 2
     }
 }

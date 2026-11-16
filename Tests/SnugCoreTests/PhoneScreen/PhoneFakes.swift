@@ -190,6 +190,8 @@ final class FakeWindows: WindowControl {
         case asks(after: TimeInterval, save: Bool)
         /// 按了不关、也不问
         case stalls
+        /// 像飞书、微信那样：点关闭只是把窗口藏起来
+        case hides
     }
     func onClose(_ key: WindowKey, _ reaction: CloseReaction) { closeReactions.withLock { $0[key] = reaction } }
 
@@ -250,8 +252,13 @@ final class FakeWindows: WindowControl {
         case nil: vanish(window)
         case .asks(let after, let save): ask(window, answeredAfter: after) { if save { self.vanish(window) } }
         case .stalls: break
+        case .hides: hide(window)
         }
         return true
+    }
+
+    func frames(of pid: Int32) async -> [WindowKey: CGRect] {
+        state.withLock { $0 }.filter { $0.key.pid == pid && shown($0.value) }.mapValues(\.frame)
     }
 
     /// 关闭按钮在窗口左上角（和真的一样，大小随便给）

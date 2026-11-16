@@ -94,6 +94,7 @@ App 将本机已安装的 Snug 按同样方式切块，只按字节范围从最�
 | `~/Library/Application Support/Snug/config.json` | 设置 |
 | `~/Library/Application Support/Snug/phone-screen.json` | 手机屏上窗口的还原记录 |
 | `~/Library/Application Support/Snug/zoom.json` | 各 App 记忆的字号级数 |
+| `~/Library/Application Support/Snug/left-behind.json` | 在 Snug 之外关闭的窗口待还原的位置与字号（保留两周） |
 | `~/Library/Logs/Snug.log` | 日志 |
 
 实现细节见 [工作原理](how-it-works.md)。

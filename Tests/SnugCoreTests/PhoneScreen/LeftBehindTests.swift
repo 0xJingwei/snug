@@ -67,6 +67,20 @@ struct LeftBehindTests {
         #expect(book.match(window("别的标题"), frame: filled) == 2)
     }
 
+    @Test("同一个窗口、同一个工作区留下好几笔：认最近的一笔（它才是现在实际欠的）")
+    func prefersNewestAmongSame() {
+        let now = Date()
+        let book = LeftBehindBook(entries: [
+            LeftBehind(record: record("README.md — snug", zoom: 2), since: now.addingTimeInterval(-3 * 24 * 3600)),
+            LeftBehind(record: record("README.md — snug", zoom: 3), since: now.addingTimeInterval(-60)),
+        ])
+        #expect(book.match(window(), frame: filled) == 1)
+        #expect(book.match(window(key: WindowKey(pid: 20, id: 300)), frame: filled) == 1)
+        #expect(book.awaits(bundleID: vscode, size: filled.size))
+        #expect(!book.awaits(bundleID: vscode, size: CGSize(width: 1200, height: 800)))
+        #expect(!book.awaits(bundleID: "com.apple.Safari", size: filled.size))
+    }
+
     @Test("没铺成过的（窗口还没挪上手机屏就没了）不记：认不出它回来没有")
     func unfilledIsNotKept() {
         var book = LeftBehindBook()
