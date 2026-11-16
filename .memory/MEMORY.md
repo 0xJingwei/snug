@@ -9,7 +9,7 @@
 - [发版](project-release.md) — 只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123
 - [国内源](project-domestic-mirror.md) — dl.zephyrxiang.com/snug/ 放安装包与 README 媒体；README 图片经 GitHub 代理、动图 ≤5 MB；证书 2027-01-12 到期
 - [演示录制（进行中）](project-demo-recording.md) — 三块屏同录的真实演示；素材、清单、脚本全在 footage/（绝不进 git），剪辑交给 kineto 会话
-- [无显示器的 Mac（issue #8）](project-headless-mac.md) — 手机屏会顶掉默认屏；先做手机屏上的退出入口，替身主屏等报告人验证
+- [无显示器的 Mac（issue #8，已关）](project-headless-mac.md) — 手机屏会顶掉默认屏；退出入口已发布并经报告人确认，替身主屏待做、缺实机验证
 - [平板横屏（待做）](project-tablet-landscape.md) — issue #7 引出：给平板单独加一块固定横屏；等主人的 iPad 寄到能实测再做
 - [产品思维](feedback-product-thinking.md) — 用户无感、可选不强制、隔离干净；验证用的步骤不进产品
 - [界面规范](feedback-ui-style.md) — 图标只用 SF Symbols；文字短词、书面、克制；每个状态讲清楚
