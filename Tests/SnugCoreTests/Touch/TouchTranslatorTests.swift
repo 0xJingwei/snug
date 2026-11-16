@@ -44,6 +44,24 @@ struct TouchTranslatorTests {
                 == TouchResponse(passOriginal: false, commands: [.replayPress, .replayCurrent]))
     }
 
+    @Test("点窗口自己的关闭按钮：不补发点击，交给 Snug 先放回原位再关；按住、滑动照旧")
+    func tapCloseButton() {
+        var region = phone
+        region.closeButton = CGRect(x: 8, y: 30, width: 14, height: 14)
+        var t = TouchTranslator()
+        #expect(t.handle(input(.press, 15, 37, 0), in: region) == TouchResponse(passOriginal: false, commands: []))
+        #expect(t.handle(input(.release, 16, 38, 0.1), in: region) == TouchResponse(passOriginal: false, commands: [.closeWindow]))
+        // 按住还是右键菜单，滑走还是滚动：只拦「点一下」
+        _ = t.handle(input(.press, 15, 37, 1), in: region)
+        #expect(t.handle(input(.release, 15, 37, 1.6), in: region).commands == [.rightClick(at: CGPoint(x: 15, y: 37))])
+        _ = t.handle(input(.press, 15, 37, 2), in: region)
+        #expect(scrolls(t.handle(input(.drag, 15, 80, 2.05), in: region)).map(\.phase) == [.began, .changed])
+        // 按钮外点一下照常
+        _ = t.handle(input(.release, 15, 80, 2.1), in: region)
+        _ = t.handle(input(.press, 100, 300, 3), in: region)
+        #expect(t.handle(input(.release, 100, 300, 3.1), in: region).commands == [.replayPress, .replayCurrent])
+    }
+
     @Test("快速滑动：开始滚动（began 再 changed），手指往下拖内容往下走，抬起发 ended")
     func swipeScrolls() {
         var t = TouchTranslator()

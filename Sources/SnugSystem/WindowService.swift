@@ -157,6 +157,15 @@ public final class WindowService: WindowControl {
         }
     }
 
+    public func closeButton(_ window: WindowKey) async -> CGRect? {
+        await run {
+            guard let element = AX.element(for: window),
+                  let button = AX.attribute(element, kAXCloseButtonAttribute), CFGetTypeID(button) == AXUIElementGetTypeID()
+            else { return nil }
+            return AX.frame(button as! AXUIElement)
+        }
+    }
+
     // MARK: App 资源库（手机屏上的卡片）
 
     /// 给在跑的 App 补上窗口：不管在哪块屏、哪个桌面空间，全屏、最小化的也算。App 和窗口都按最近用过排

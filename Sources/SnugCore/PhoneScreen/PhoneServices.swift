@@ -69,6 +69,8 @@ public protocol WindowControl: Sendable {
     func askingWindow(of pid: Int32) async -> WindowInfo?
     /// 按窗口的关闭按钮（全屏的按了没反应，要先退出全屏）。找不到窗口或按钮返回 false
     func close(_ window: WindowKey) async -> Bool
+    /// 窗口关闭按钮的位置（全局坐标，左上原点）；没有关闭按钮、读不到返回 nil
+    func closeButton(_ window: WindowKey) async -> CGRect?
     /// 当前桌面空间里普通窗口此刻的位置。加屏、撤屏前拍一张：macOS 会把窗口挪来挪去
     func snapshot() async -> [WindowKey: CGRect]
     /// 把位置变了的窗口放回快照里的位置（except 那个除外）
@@ -79,6 +81,8 @@ public protocol WindowControl: Sendable {
 public protocol AppControl: Sendable {
     /// 在跑就给进程号
     func pid(of app: AppInfo) async -> Int32?
+    /// 这个 App 在跑的所有进程（一般只有一个）。认留下的账的窗口回来没有时用：App 重启后进程号会换
+    func pids(bundleID: String) async -> [Int32]
     /// 没在跑就启动，在跑就「重新打开」（同点 Dock 图标，没窗口的 App 会开出窗口）。返回进程号，打不开返回 nil
     func open(_ app: AppInfo) async -> Int32?
     /// 按下菜单里的「新建窗口」（按标题认，见 NewWindowMenu；App 不在前台也行）；没有这一项、或 App 没响应返回 false

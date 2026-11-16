@@ -6,8 +6,11 @@
 // 屏幕适配（ScreenFit）：手机屏的比例跟着用户的手机走（设置里换了就在线换，不撤屏）；
 // 宽度跟着屏上显示的东西走，露着列表是基准宽度，放着窗口是那个窗口要的一档。
 // 隔离：只动手机屏和放上来的那一个窗口；加屏、撤屏被系统挪动的其它窗口放回原处；
-// 每一处改动先记账再动手，还原成功、或窗口确实没了才销账。没销的账（Snug 崩溃、App 卡住没放成）
-// 在下次启动（recover()）、或下次放窗口之前按账还原，不会被新的记录盖掉
+// 每一处改动先记账再动手，还原成功才销账。没销的账（Snug 崩溃、App 卡住没放成）
+// 在下次启动（recover()）、或下次放窗口之前按账还原，不会被新的记录盖掉。
+// 窗口在 Snug 之外没了（手机上关掉、App 自己换了窗口），App 多半已经把手机屏上的大小、字号存下了：
+// 账转成留下的账（LeftBehind），它带着手机屏上的大小回来时再还（checkReturns）。
+// 手机上点窗口自己的关闭按钮不算在 Snug 之外：先放回原位再关（closePlaced），根本不留账
 import CoreGraphics
 import Foundation
 
@@ -37,6 +40,8 @@ public final class PhoneDesk {
         public var closing: Set<WindowKey> = []
         /// 在手机上退出了手机屏：这次远程不再加（见 dismissScreen）
         public var dismissed = false
+        /// 手机屏上那个窗口的关闭按钮（全局坐标，铺好后读的）。手机上点它不直接关，先放回原位再关（见 closePlaced）
+        public var closeButton: CGRect?
 
         public init() {}
 
@@ -67,6 +72,8 @@ public final class PhoneDesk {
         case reshaped
         /// 换了手机型号，但这块屏没能换成新比例（还是原来的）；下次加屏时按新的建
         case reshapeFailed
+        /// 放大过字号的窗口在 Snug 之外关掉了，放大的那几级会被 App 记住（VS Code 按工作区记），再打开时可能还大
+        case zoomLeftBehind(app: String, steps: Int)
     }
 
     /// 盯着的 App 退完了、窗口关上了
@@ -121,6 +128,9 @@ public final class PhoneDesk {
     /// 给了强制退出以后再看这么久、隔 stalledPoll 看一次：它自己退了（大型 App 退出要十几秒），提示就撤掉
     static let stalledFollow: TimeInterval = 60
     static let stalledPoll: TimeInterval = 1
+    /// 放着的窗口在 Snug 之外没了以后，等它的 App 开出新窗口最多这么久，开出来就接着放上来
+    /// （ChatGPT 冷启动约 3 秒后会换掉第一个窗口，实测 11-15）
+    static let replaceWait: TimeInterval = 10
 
     public private(set) var state = State() {
         didSet { if state != oldValue { onChange?(state) } }
@@ -143,18 +153,26 @@ public final class PhoneDesk {
     private let ledger: RestoreRecord<PhoneRecord>
     private let zoomFile: JSONFile<ZoomBook>
     private var zoomBook: ZoomBook
+    private let leftBehindFile: JSONFile<LeftBehindBook>
+    private var leftBehind: LeftBehindBook
     private let lane = SerialLane()
 
     private var wanted = false
     private var display: (id: DisplayID, bornAt: TimeInterval)?
     private var placement: Placement? {
-        didSet { state.placed = placement.map { Placed(window: $0.window, zoom: $0.record.zoom) } }
+        didSet {
+            state.placed = placement.map { Placed(window: $0.window, zoom: $0.record.zoom) }
+            if placement?.window.key != oldValue?.window.key { state.closeButton = nil }
+        }
     }
     private var recheckGeneration = 0
     private var pendingRecheck: Task<Void, Never>?
     private var failures = 0
     private var pendingRetry: Task<Void, Never>?
     private var verifying = false
+    private var checkingReturns = false
+    /// 刚在 Snug 之外没了的窗口：它的 App 在 replaceWait 内开出不在 known 里的新窗口，就接着放上来
+    private var replaced: (pid: Int32, known: Set<WindowKey>, until: TimeInterval)?
     /// 盯着的请求：请它退出的 App、请它关掉的窗口
     private enum Watched: Hashable {
         case quit(Int32)
@@ -174,6 +192,8 @@ public final class PhoneDesk {
         ledger = RestoreRecord(url: paths.phoneRecord)
         zoomFile = JSONFile(url: paths.zoomBook)
         zoomBook = zoomFile.loadOrQuarantine() ?? ZoomBook()
+        leftBehindFile = JSONFile(url: paths.leftBehind)
+        leftBehind = leftBehindFile.loadOrQuarantine() ?? LeftBehindBook()
     }
 
     // MARK: 意图
@@ -302,6 +322,14 @@ public final class PhoneDesk {
         }
     }
 
+    /// 手机上点了手机屏上那个窗口自己的关闭按钮（手势翻译拦下来的）：和在 App 资源库里关一样，先放回原位、缩回字号再关。
+    /// 直接让它关，App 会把手机屏上的大小和字号存下来，下次开出来还是那样（issue #14）
+    public func closePlaced() {
+        guard let p = placement else { return }
+        Log.info("手机上点了 \(p.window.label) 的关闭按钮：先放回原位再关")
+        close(p.window)
+    }
+
     /// 关掉提示（「稍后」）。没退出的那个就不再盯了
     public func dismissNotice() {
         if case .quitStalled(_, let pid) = state.notice { unwatch(.quit(pid)) }
@@ -399,10 +427,11 @@ public final class PhoneDesk {
             defer { self.verifying = false }
             guard let p = self.placement else { return }
             guard await self.windows.exists(p.window.key) else {
-                Log.info("手机屏上的 \(p.window.label) 已经关了，回到 App 资源库")
+                Log.info("手机屏上的 \(p.window.label) 在 Snug 之外关了，回到 App 资源库")
                 self.placement = nil
                 self.state.listVisible = true
-                self.settleRecord()
+                self.replaced = (p.window.key.pid, p.known.union([p.window.key]), self.timeline.now + Self.replaceWait)
+                await self.leaveBehind(p.record)
                 await self.matchWidth()
                 return
             }
@@ -417,6 +446,18 @@ public final class PhoneDesk {
     /// 有辅助功能权限后调用：上次 Snug 没来得及放回去的窗口，按记录放回去。记录在队里轮到时才读，不会拿旧的放两遍
     public func recover() {
         lane.run { await self.putBackLeftover() }
+    }
+
+    /// 定期调用（和 verifyPlacement 同一拍）：刚在 Snug 之外没了的窗口，它的 App 换没换个新窗口（换了就接着放上来）；
+    /// 留下的账的窗口回来没有（带着手机屏上的大小回来就还账）。没账可查时什么都不做
+    public func checkReturns() {
+        guard replaced != nil || !leftBehind.entries.isEmpty, state.work == nil, !checkingReturns else { return }
+        checkingReturns = true
+        lane.run {
+            defer { self.checkingReturns = false }
+            await self.followReplacement()
+            await self.takeBackReturned()
+        }
     }
 
     /// 退出前：放回窗口、撤掉手机屏，做完才返回
@@ -590,6 +631,10 @@ public final class PhoneDesk {
         await switchWidth(id, to: p.width)
         guard let area = displays.windowArea(id), let got = await windows.move(p.window.key, to: area) else { return nil }
         p.settled = got
+        // App 关窗时存下的就是这个大小：窗口在 Snug 之外没了，凭它认出回来的是不是它
+        p.record.filled = got
+        write(p.record)
+        state.closeButton = await windows.closeButton(p.window.key)
         // 窗口落到了区域原点、只是尺寸被夹住，才是 App 限定了最小尺寸；没挪过去（App 不认挪动）就不按它的大小换档
         let placed = abs(got.minX - area.minX) < 2 && abs(got.minY - area.minY) < 2
         guard placed, let current = displays.width(id) else { return got }
@@ -639,13 +684,22 @@ public final class PhoneDesk {
         }
         // 放回别的窗口可能动到它（上次没放回去的就是它），重新读
         guard let look = await reach(window) else { return }
-        // 先记账再动手。全屏的窗口这时读到的是全屏的位置，崩溃后按它放回再恢复全屏也对
-        var next = Placement(window: window, record: PhoneRecord(
+        let known = Set(await windows.shownWindows(of: window.key.pid).map(\.key)).subtracting([window.key])
+        // 先记账再动手。全屏的窗口这时读到的是全屏的位置，崩溃后按它放回再恢复全屏也对。
+        // 它是留下的账的窗口、原样回来了（手机屏上关掉又在手机上重开）：接着用那笔账，原位还是当初的，字号按带回来的算
+        let owed = leftBehind.match(window, frame: look.frame)
+        let record = owed.map { leftBehind.entries[$0].returned(as: window.key) } ?? PhoneRecord(
             window: window.key, app: window.app, label: window.label, original: originalFrame(look.frame, offPhone: id),
-            wasFullScreen: look.fullScreen, wasMinimized: look.minimized), width: screenFit.baseWidth)
+            wasFullScreen: look.fullScreen, wasMinimized: look.minimized, bundleID: window.bundleID, title: window.title)
+        var next = Placement(window: window, record: record, width: screenFit.baseWidth, known: known)
         guard write(next.record) else {
             state.notice = .recordUnwritable
             return
+        }
+        if let owed {
+            Log.info("\(window.label) 带着手机屏上的样子回来了，接着放：原位按当初的 \(record.original.short)，字号已大 \(record.zoom) 级")
+            leftBehind.remove(at: owed)
+            saveLeftBehind()
         }
         if look.minimized { await windows.setMinimized(window.key, false) }
         if look.fullScreen {
@@ -676,7 +730,8 @@ public final class PhoneDesk {
         let fill = describeFill(got, in: displays.windowArea(id), width: displays.width(id) ?? next.width)
         Log.info("\(window.label) 放上手机屏（\(took)s）：原位 \(next.record.original.short)\(was)，\(fill)")
 
-        let steps = zoomBook.steps(for: window.bundleID, default: defaultZoom)
+        // 带着字号回来的不重复放大，只补差的那几级
+        let steps = zoomBook.steps(for: window.bundleID, default: defaultZoom) - next.record.zoom
         guard zoom, steps != 0 else { return }
         // 窗口已经在手机屏上了，剩下的只是调字号
         state.work = .zooming
@@ -917,8 +972,8 @@ public final class PhoneDesk {
     private func putBackLeftover() async -> PhoneRecord? {
         guard placement == nil, let record = ledger.pending() else { return nil }
         guard await windows.exists(record.window) else {
-            Log.info("还原记录里的 \(record.label) 已经不在了（App 退出或窗口关了），记录作废")
-            settleRecord()
+            Log.info("还原记录里的 \(record.label) 已经不在了（App 退出或窗口关了），等它回来再还")
+            await leaveBehind(record)
             return nil
         }
         Log.info("\(record.label) 上次没放回去，现在放回 \(record.original.short)")
@@ -931,9 +986,96 @@ public final class PhoneDesk {
             Log.warn("\(record.label) 还在，但\(what)（App 没响应或没有辅助功能权限），还原记录留着，稍后再放回")
             return record
         }
-        Log.info("\(record.label) 已经关了，不用放回")
-        settleRecord()
+        Log.info("\(record.label) 已经关了，等它回来再还")
+        await leaveBehind(record)
         return nil
+    }
+
+    // MARK: 留下的账
+
+    /// 窗口在 Snug 之外没了：账不销，转成留下的账，等它带着手机屏上的大小回来再还（见 LeftBehind）。
+    /// 字号按 App 存在哪处理：存在整个 App 里的（Zed）马上从它别的窗口缩回；会被 App 记住、回来时又认不出的（VS Code
+    /// 按工作区记，重开时大小可能被重设），提示用户。先记下留下的账再销主记录：中途崩溃最多多一笔账，不会丢账
+    private func leaveBehind(_ record: PhoneRecord) async {
+        var record = record
+        if record.zoom != 0 {
+            switch ZoomBook.scope(of: record.bundleID) {
+            case .app?:
+                if await !repayAppZoom(record) { state.notice = .zoomLeftBehind(app: record.app, steps: record.zoom) }
+                record.zoom = 0
+            case .workspace?:
+                state.notice = .zoomLeftBehind(app: record.app, steps: record.zoom)
+            case .liveWindow?, .restoredWindow?, nil:
+                break
+            }
+        }
+        leftBehind.add(LeftBehind(record: record, since: Date()))
+        leftBehind.prune(now: Date())
+        saveLeftBehind()
+        settleRecord()
+    }
+
+    /// 字号存在整个 App 里（Zed）：从它还开着的另一个窗口缩回。没有别的窗口、或发不出去返回 false
+    private func repayAppZoom(_ record: PhoneRecord) async -> Bool {
+        guard let other = await windows.shownWindows(of: record.window.pid).first(where: { $0.key != record.window }) else {
+            Log.warn("\(record.label) 关了，\(record.app) 没有别的窗口，放大的 \(record.zoom) 级字号缩不回")
+            return false
+        }
+        let done = await windows.zoom(other.key, steps: -record.zoom)
+        Log.info("\(record.label) 关了，字号存在整个 \(record.app) 里：从 \(other.label) 缩回 \(record.zoom) 级\(done ? "" : "，没发出去")")
+        return done
+    }
+
+    /// 刚在 Snug 之外没了的窗口，它的 App 开出了新窗口（不在放上来时就有的那些里）：接着放上来。
+    /// 用户已经放了别的窗口、或等满了，就不再等
+    private func followReplacement() async {
+        guard let r = replaced else { return }
+        guard placement == nil, timeline.now < r.until else {
+            replaced = nil
+            return
+        }
+        guard display != nil, let next = await windows.shownWindows(of: r.pid).first(where: { !r.known.contains($0.key) }) else { return }
+        replaced = nil
+        Log.info("\(next.app) 换了个窗口，接着放上手机屏：\(next.label)")
+        await place(next)
+        state.work = nil
+    }
+
+    /// 留下的账的窗口回来了（同一个 App 的窗口带着 Snug 铺成的大小出现）：还在远程、手机屏上空着、它就开在手机屏上，
+    /// 接着放着（手机上关掉又重开）；否则放回原位，字号随窗口回来的一起缩回。一次只还一笔，还不成（App 没响应）下一拍再试
+    private func takeBackReturned() async {
+        leftBehind.prune(now: Date())
+        for bundle in Set(leftBehind.entries.compactMap(\.record.bundleID)) {
+            for pid in await apps.pids(bundleID: bundle) {
+                for window in await windows.shownWindows(of: pid) where window.key != placement?.window.key {
+                    guard let frame = await windows.look(window.key)?.frame, let i = leftBehind.match(window, frame: frame) else { continue }
+                    await takeBack(i, window: window, frame: frame)
+                    return
+                }
+            }
+        }
+    }
+
+    private func takeBack(_ i: Int, window: WindowInfo, frame: CGRect) async {
+        let entry = leftBehind.entries[i]
+        if wanted, placement == nil, let id = display?.id,
+           displays.bounds(id)?.contains(CGPoint(x: frame.midX, y: frame.midY)) == true {
+            await place(window)
+            state.work = nil
+            return
+        }
+        var record = entry.returned(as: window.key)
+        if record.zoom != 0 {
+            guard await windows.zoom(window.key, steps: -record.zoom) else { return }
+            record.zoom = 0
+            leftBehind.update(at: i) { $0.record.zoom = 0 }
+            saveLeftBehind()
+        }
+        guard let got = await windows.move(window.key, to: record.original) else { return }
+        leftBehind.remove(at: i)
+        saveLeftBehind()
+        let zoom = entry.returned(as: window.key).zoom
+        Log.info("\(window.label) 带着手机屏上的样子回来了，放回原位 \(got.short)\(zoom != 0 ? "，字号缩回 \(zoom) 级" : "")")
     }
 
     /// 先记账再发按键，改完核对窗口还铺不铺满。返回是否真的改了
@@ -1029,6 +1171,14 @@ public final class PhoneDesk {
         }
     }
 
+    private func saveLeftBehind() {
+        do {
+            try leftBehindFile.save(leftBehind)
+        } catch {
+            Log.error("留下的账写不进去（left-behind.json）：\(error)")
+        }
+    }
+
     private func saveZoomBook() {
         do {
             try zoomFile.save(zoomBook)
@@ -1046,6 +1196,8 @@ private struct Placement {
     var width: Int
     /// 上次挪完的样子：比最宽一档还宽的窗口铺不满，以它为准判断窗口有没有被再挪动
     var settled: CGRect?
+    /// 放上来时它的 App 已经开着的其它窗口：它在 Snug 之外没了以后，不在这里面的才算 App 换上的新窗口
+    var known: Set<WindowKey> = []
 }
 
 /// 一条队：动作按提交顺序一个做完再做下一个

@@ -77,6 +77,7 @@ final class AppController {
     func start() {
         desk.onChange = { [weak self] phone in self?.phoneChanged(phone) }
         desk.onGone = { [weak self] gone in self?.catalog.forget(gone) }
+        touch.onCloseWindow = { [weak self] in self?.desk.closePlaced() }
         desk.onTopologyChange = { [weak self] in
             guard let self else { return }
             session.noteSelfInducedChange(at: now)
@@ -127,6 +128,7 @@ final class AppController {
         if now.timeIntervalSince(lastVerifyAt) >= Self.verifyInterval {
             lastVerifyAt = now
             desk.verifyPlacement()
+            desk.checkReturns()
         }
         state.update(\.connection, session.isConnected ? .connected : (session.inEpisode ? .reconnecting : .idle))
         state.update(\.controllers, session.controllers)
@@ -158,7 +160,9 @@ final class AppController {
 
     /// 手势翻译只在手机屏在、并且开着手势时运行；范围跟着手机屏（换档、屏幕重排时 DisplayWatcher 也会调到这里）
     func syncGestures() {
-        let region = store.config.gestures ? state.phone.display.map { TouchRegion(phoneScreen: CGDisplayBounds($0)) } : nil
+        // 窗口露着时才拦它的关闭按钮：列表盖着时那个位置是列表
+        let closeButton = state.phone.listVisible ? nil : state.phone.closeButton
+        let region = store.config.gestures ? state.phone.display.map { TouchRegion(phoneScreen: CGDisplayBounds($0), closeButton: closeButton) } : nil
         state.update(\.gesturesFailed, !touch.setRegion(region))
     }
 

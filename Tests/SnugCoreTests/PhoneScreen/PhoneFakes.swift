@@ -200,6 +200,10 @@ final class FakeWindows: WindowControl {
     /// 像飞书、微信点关闭那样：窗口藏起来，还在
     func hide(_ key: WindowKey) { state.withLock { $0[key]?.hidden = true } }
     func window(_ key: WindowKey) -> Window? { state.withLock { $0[key] } }
+    /// 带着 bundle ID 的窗口都属于哪些进程（假 App 按它报 pids）
+    func pids(bundleID: String) -> [Int32] {
+        Array(Set(state.withLock { $0 }.compactMap { $0.value.info?.bundleID == bundleID ? $0.key.pid : nil })).sorted()
+    }
     func setFrame(_ key: WindowKey, _ frame: CGRect) { state.withLock { $0[key]?.frame = frame } }
 
     private var mark: String {
@@ -248,6 +252,12 @@ final class FakeWindows: WindowControl {
         case .stalls: break
         }
         return true
+    }
+
+    /// 关闭按钮在窗口左上角（和真的一样，大小随便给）
+    func closeButton(_ window: WindowKey) async -> CGRect? {
+        guard reachable, let w = self.window(window) else { return nil }
+        return CGRect(x: w.frame.minX + 8, y: w.frame.minY + 8, width: 14, height: 14)
     }
 
     func look(_ window: WindowKey) async -> WindowLook? {
@@ -388,6 +398,12 @@ final class FakeApps: AppControl {
     }
 
     func pid(of app: AppInfo) async -> Int32? { running.withLock { $0.first { $0.value.bundleID == app.bundleID }?.key } }
+
+    /// 登记过在跑的，加上窗口带着这个 bundle ID 的进程
+    func pids(bundleID: String) async -> [Int32] {
+        let registered = running.withLock { $0.filter { $0.value.bundleID == bundleID }.map(\.key) }
+        return Array(Set(registered + windows.pids(bundleID: bundleID))).sorted()
+    }
 
     func open(_ app: AppInfo) async -> Int32? {
         journal.add("open \(app.bundleID)")

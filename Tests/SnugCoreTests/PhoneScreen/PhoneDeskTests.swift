@@ -39,7 +39,9 @@ struct PhoneDeskTests {
         #expect(rig.desk.state.placed?.zoom == 2)
         #expect(rig.desk.state.listVisible == false)
         #expect(rig.desk.state.work == nil)
-        #expect(rig.record == PhoneRecord(window: ghostty.key, app: ghostty.app, label: ghostty.label, original: ghosttyHome, wasFullScreen: false, zoom: 2))
+        #expect(rig.record == PhoneRecord(window: ghostty.key, app: ghostty.app, label: ghostty.label, original: ghosttyHome, wasFullScreen: false, zoom: 2,
+                                          bundleID: ghostty.bundleID, title: ghostty.title, filled: phoneArea))
+        #expect(rig.desk.state.closeButton == CGRect(x: phoneArea.minX + 8, y: phoneArea.minY + 8, width: 14, height: 14))
     }
 
     @Test("不在调字号名单里的 App 不发 ⌘=")
@@ -409,7 +411,8 @@ struct PhoneDeskTests {
         rig.timeline.advance(10)
         rig.desk.setWanted(false)
         await rig.desk.idle()
-        #expect(rig.record == PhoneRecord(window: ghostty.key, app: ghostty.app, label: ghostty.label, original: ghosttyHome, zoom: 2))
+        #expect(rig.record == PhoneRecord(window: ghostty.key, app: ghostty.app, label: ghostty.label, original: ghosttyHome, zoom: 2,
+                                          bundleID: ghostty.bundleID, title: ghostty.title, filled: phoneArea))
         rig.desk.recover()
         await rig.desk.idle()
         #expect(rig.record != nil)

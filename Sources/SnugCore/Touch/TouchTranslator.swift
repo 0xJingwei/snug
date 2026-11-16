@@ -3,6 +3,7 @@
 //   单指滑动        → 滚动，松手带惯性
 //   按住 0.5 秒再拖 → 选择（照旧拖动）
 //   按住 0.5 秒松手 → 右键菜单（选区不丢，菜单里有拷贝、粘贴）
+//   点窗口自己的关闭按钮 → 不补发点击，交给 Snug 先把窗口放回原位再关（直接关，App 会存下手机屏上的大小和字号）
 // UU 把单指拖动当成鼠标拖动发过来（会选中文字），滚动要两根手指，这里在 Mac 这一侧翻译回来。
 // 纯状态机：吃进 UU 的按下 / 拖动 / 抬起，吐出「原事件放不放行」和要补发的事件，时间由调用方给。
 // 只有范围（TouchRegion）里按下的那一下会被接管；之后的拖动、抬起跟着这一下走，手指滑出范围也一样。
@@ -15,10 +16,13 @@ import Foundation
 public struct TouchRegion: Equatable, Sendable {
     public var frame: CGRect
     public var scale: Double
+    /// 手机屏上那个窗口的关闭按钮（全局坐标）；露着列表、没放窗口时为 nil
+    public var closeButton: CGRect?
 
-    public init(frame: CGRect, scale: Double) {
+    public init(frame: CGRect, scale: Double, closeButton: CGRect? = nil) {
         self.frame = frame
         self.scale = scale
+        self.closeButton = closeButton
     }
 }
 
@@ -44,6 +48,8 @@ public enum TouchCommand: Equatable, Sendable {
     case replayCurrent
     case rightClick(at: CGPoint)
     case scroll(ScrollStep)
+    /// 点了窗口的关闭按钮：原来的按下、抬起都吞掉，由 Snug 先放回原位再关
+    case closeWindow
 }
 
 public struct TouchResponse: Equatable, Sendable {
@@ -86,6 +92,8 @@ public struct TouchTranslator: Sendable {
     private var scale = 1.0
     /// 这次按下停掉了惯性：很快松手就只是停住，不补发点击
     private var pressStoppedCoast = false
+    /// 这次按在窗口的关闭按钮上
+    private var pressOnClose = false
 
     public init() {}
 
@@ -121,6 +129,7 @@ public struct TouchTranslator: Sendable {
         }
         scale = region.scale
         pressStoppedCoast = !stop.isEmpty
+        pressOnClose = region.closeButton?.contains(input.location) ?? false
         phase = .pending(since: input.time)
         origin = input.location
         last = input.location
@@ -159,7 +168,8 @@ public struct TouchTranslator: Sendable {
                 return .swallow([.rightClick(at: origin)])
             }
             // iPhone 上点一下正在滚的列表只是停住；补发点击会点到手指下还在移动的东西
-            return pressStoppedCoast ? .swallow() : .swallow([.replayPress, .replayCurrent])
+            if pressStoppedCoast { return .swallow() }
+            return pressOnClose ? .swallow([.closeWindow]) : .swallow([.replayPress, .replayCurrent])
         case .scrolling:
             phase = .idle
             let ended = wheel.step(dx: 0, dy: 0, phase: .ended, momentum: .none, at: origin)
