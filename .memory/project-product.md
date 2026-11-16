@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: f97709de-705a-489b-bb7a-7353b1fba51c
-  modified: 2026-11-15T12:58:30.293Z
+  modified: 2026-11-16T03:37:01.091Z
 ---
 
 **目标**（2026-11-12 主人定）：让用手机通过 UU远程 使用 Mac 的体感最好，往清晰、大、方便做。虚拟屏只是手段。
@@ -29,4 +29,4 @@ metadata:
 
 **How to apply:** 设计任何交互先问三件事：只用手机能不能完成？没用手机屏时是不是和原版 UU 一样？改动是不是只限手机屏、并且能还原？协作偏好见 [[feedback-product-thinking]]，实现上的坑见 [[project-phone-screen]]。
 
-**边界**（11-15 主人定，issue #4）：只做「手机、平板远程 Mac」。电脑远程电脑的去黑边（带鱼屏等）不做：前身 UUyc-companion 已经做得很好，不重复造轮子；兼顾电脑控制端会把产品定义和架构搅乱。回复方式见 [[feedback-issue-replies]]
+**边界**（11-15 主人定 issue #4，11-16 因 issue #10 改）：原先只做「手机、平板远程 Mac」，电脑控制端不管。11-16 改为「给每种控制端一块合身的屏」：电脑和平板共用一块横屏，随平板横屏一起做，详见 [[project-tablet-landscape]]。改的原因：UUyc-companion 10-13 起停更，#10 报告人说它在系统更新后已失效，「不重复造轮子」不再成立；平板反正要做横屏，电脑是第二个用例。仍不做的是 UUyc 的「设主屏 + 关物理屏」：横屏是扩展出来的一块，不改主屏。#4 已关，功能发布后可以回去补一句。回复方式见 [[feedback-issue-replies]]
