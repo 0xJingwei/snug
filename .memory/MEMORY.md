@@ -4,17 +4,17 @@
 - [通用 skill 路由](skill-routing-general.md) — 密钥、多仓、云运维、Multica、编排、长任务、去 AI 腔用哪个 skill
 - [iOS skill 路由](skill-routing-ios.md) — SwiftUI 视图、iOS 验证闭环用哪个 skill
 - [项目定位](project-positioning.md) — 承接的自有项目，保留原作者版权与致谢；2.0.0 已发布，本地数据格式变更要带迁移
-- [产品](project-product.md) — 目标与已拍板的形态：可选竖屏手机屏、默认同原版 UU、有手机或平板连着才加屏、屏幕适配按窗口换档、首页是 App 资源库；电脑控制端随平板横屏一起做（不改主屏）
-- [手机屏实测坑](project-phone-screen.md) — 多数已在代码注释和 docs；这里留 UU 事件形态、ColorSync 排障、真机自测怎么做、换档实测、App 资源库边界
-- [发版](project-release.md) — 只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123
-- [国内源](project-domestic-mirror.md) — dl.zephyrxiang.com/snug/ 放安装包与 README 媒体；README 图片经 GitHub 代理、动图 ≤5 MB；证书 2027-01-12 到期
-- [演示录制（进行中）](project-demo-recording.md) — 三块屏同录的真实演示；素材、清单、脚本全在 footage/（绝不进 git），剪辑交给 kineto 会话
-- [无显示器的 Mac（issue #8，已关）](project-headless-mac.md) — 手机屏会顶掉默认屏；退出入口已发布并经报告人确认，替身主屏待做、缺实机验证
-- [平板和电脑横屏（待做）](project-tablet-landscape.md) — issue #7、#10：平板和电脑共用一块固定横屏，电脑不开手势；等主人的 iPad 寄到后两种一起开工
+- [产品](project-product.md) — 目标与已拍板的形态：可选竖屏手机屏、默认同原版 UU、App 资源库、按窗口换档、按机型定比例；否掉设主屏、横竖切换、默认进手机屏；边界扩到电脑控制端
+- [手机屏实测坑](project-phone-screen.md) — UU 事件形态与选屏推流规律（新连接总从主屏开始）、真机自测与只从访达重开正式版、ColorSync、换档实测、App 资源库边界
+- [发版](project-release.md) — 只走 scripts/snug；个人 Developer ID（29898YBGWD）公证；gh 绑定 zephyr4123 并写明 -R；版本号与更新日志口径；发版后不替主人装
+- [国内源与 README](project-domestic-mirror.md) — dl.zephyrxiang.com/snug/ 放安装包与 README 媒体；看下载量；README 结构、截图规格、待换的演示动图；证书 2027-01-12 到期
+- [演示录制（进行中）](project-demo-recording.md) — 三块屏原画并排，正式素材和粗剪已就绪；全在 footage/（绝不进 git），主人说交接时才交给 kineto
+- [无显示器的 Mac（issue #8，已关）](project-headless-mac.md) — 手机屏会顶掉默认屏；退出入口已发布，替身主屏方案已定、缺实机验证
+- [平板和电脑横屏（待做）](project-tablet-landscape.md) — issue #7、#10：平板和电脑共用一块固定横屏，电脑不开手势、默认关；等 iPad 寄到后两种一起开工
 - [产品思维](feedback-product-thinking.md) — 用户无感、可选不强制、隔离干净；验证用的步骤不进产品
 - [界面规范](feedback-ui-style.md) — 图标只用 SF Symbols；文字短词、书面、克制；每个状态讲清楚
 - [对外文案](feedback-doc-writing.md) — 书面语、提炼不照抄；分点、图文对应；打码只糊必要的一小块
-- [回复 issue](feedback-issue-replies.md) — 不关别人的 issue；婉拒讲清定位不同、语气平和；直接发不用再审
+- [回复 issue](feedback-issue-replies.md) — 不关别人的 issue；婉拒讲清定位、语气平和；做不到的要把实测和论证讲闭环；主人说发就不再审
 - [直接修不建 issue](feedback-direct-fix-no-issues.md) — bug 直接修、重构直接做，追溯靠 commit 信息
 - [Workflow 使用](feedback-workflow-scale.md) — 起之前先跟主人确认；审查只审一轮，维度含正确性、架构、工程审美、去冗余；5 个左右、一个核实者
 - [宣传片](feedback-promo-video.md) — 在 kineto 做：发布会式快节奏、代码画为主、场景可演绎细节必须真；给 kineto 只给方向
