@@ -59,13 +59,7 @@ struct AppCard: View {
         if quitting {
             ProgressView().controlSize(.small).frame(width: PhoneStyle.touchTarget)
         } else if askingQuit {
-            HStack(spacing: 8) {
-                PillButton(title: "取消") { confirming = nil }
-                PillButton(title: "退出", destructive: true) {
-                    confirming = nil
-                    intents.quit(app)
-                }
-            }
+            ConfirmButtons(title: "退出", confirming: $confirming) { intents.quit(app) }
         } else {
             HStack(spacing: 8) {
                 RoundButton(symbol: "macwindow.badge.plus", label: "新建窗口") { intents.newWindow(app) }
@@ -124,13 +118,7 @@ private struct WindowRow: View {
                 Text("正在关闭").font(PhoneStyle.label).foregroundStyle(.secondary)
             }
         } else if askingClose {
-            HStack(spacing: 8) {
-                PillButton(title: "取消") { confirming = nil }
-                PillButton(title: "关闭", destructive: true) {
-                    confirming = nil
-                    intents.close(window)
-                }
-            }
+            ConfirmButtons(title: "关闭", confirming: $confirming) { intents.close(window) }
         } else {
             Button { confirming = .close(window.key) } label: {
                 Image(systemName: "xmark.circle.fill")

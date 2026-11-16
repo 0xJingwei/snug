@@ -75,6 +75,8 @@ struct PhoneHomeView: View {
     /// 退出手机屏的图标：右上角的按钮、确认卡和「正在退出」共用
     static let dismissSymbol = "rectangle.portrait.and.arrow.forward"
     private static let top = "top"
+    /// 顶部那一行的左右边距，和下面的内容一样
+    private static let rowMargin: CGFloat = 20
     private var phone: PhoneDesk.State { state.phone }
 
     var body: some View {
@@ -97,9 +99,9 @@ struct PhoneHomeView: View {
     }
 
     private var home: some View {
-        VStack(spacing: 0) {
-            backRow
-            ScrollViewReader { proxy in
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                backRow(proxy)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                         header.id(Self.top)
@@ -117,40 +119,47 @@ struct PhoneHomeView: View {
                 .onChange(of: phone.listVisible) { _, visible in
                     if visible { proxy.scrollTo(Self.top, anchor: .top) }
                 }
-                // 提示和退出手机屏的确认都在页眉里：翻到下面时出了问题、点了退出，滚回去让人看见
+                // 提示在页眉里：翻到下面时出了问题，滚回去让人看见
                 .onChange(of: phone.notice) { _, notice in
                     if notice != nil { withAnimation { proxy.scrollTo(Self.top, anchor: .top) } }
-                }
-                .onChange(of: confirming) { _, asking in
-                    if asking == .dismissScreen { withAnimation { proxy.scrollTo(Self.top, anchor: .top) } }
                 }
             }
         }
         .disabled(phone.work != nil)
     }
 
-    /// 返回键那一行一直留着：有没有返回键，下面的内容都不跳
-    private var backRow: some View {
+    /// 返回键那一行一直留着：有没有返回键，下面的内容都不跳。右边距由最右的图标按钮自己留（见 navButton）
+    private func backRow(_ proxy: ScrollViewProxy) -> some View {
         HStack {
             if let placed = phone.placed {
                 BackButton(app: placed.window.app) { intents.returnToPlaced() }
             }
             Spacer(minLength: 12)
-            navButton(Self.dismissSymbol, label: "退出手机屏") { confirming = .dismissScreen }
-            navButton("iphone.gen3", label: "手机型号") { pages.open(.phoneModel) }
+            HStack(spacing: 0) {
+                // 确认卡在页眉里：每次点都滚回去，翻到下面时再点也看得见
+                navButton(Self.dismissSymbol, label: "退出手机屏") {
+                    confirming = .dismissScreen
+                    withAnimation { proxy.scrollTo(Self.top, anchor: .top) }
+                }
+                navButton("iphone.gen3", label: "手机型号", atEdge: true) { pages.open(.phoneModel) }
+            }
         }
         .frame(height: PhoneStyle.touchTarget)
-        .padding(.horizontal, 20)
+        .padding(.leading, Self.rowMargin)
         .padding(.top, 12)
     }
 
-    /// 顶部那一行右边的图标按钮。图标贴点按范围的右边，最右那个和型号页的「完成」、搜索页的「取消」对齐
-    private func navButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    /// 顶部那一行右边的图标按钮：点按范围 touchTarget 见方，图标居中。
+    /// 最右那个（atEdge）把这一行的右边距算进点按范围：图标贴着边距，和型号页的「完成」、搜索页的「取消」对齐，
+    /// 点按范围伸到屏幕边上，图标左边不用留一大块空，两个图标才不会隔得太开
+    private func navButton(_ symbol: String, label: String, atEdge: Bool = false, action: @escaping () -> Void) -> some View {
+        let margin = atEdge ? Self.rowMargin : 0
+        return Button(action: action) {
             Image(systemName: symbol)
                 .font(PhoneStyle.headline.weight(.regular))
                 .foregroundStyle(PhoneStyle.tint)
-                .frame(width: PhoneStyle.touchTarget, height: PhoneStyle.touchTarget, alignment: .trailing)
+                .frame(width: PhoneStyle.touchTarget - margin, height: PhoneStyle.touchTarget, alignment: atEdge ? .trailing : .center)
+                .padding(.trailing, margin)
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
@@ -165,13 +174,8 @@ struct PhoneHomeView: View {
             .buttonStyle(PressableStyle())
             if confirming == .dismissScreen {
                 Banner(symbol: Self.dismissSymbol, tint: .red, headline: "退出手机屏？", detail: "窗口还原，下次远程时恢复") {
-                    HStack(spacing: 12) {
-                        PillButton(title: "取消") { confirming = nil }
-                        PillButton(title: "退出", destructive: true) {
-                            confirming = nil
-                            intents.dismissScreen()
-                        }
-                    }
+                    // 间距和提示卡里的「稍后 / 强制退出」一样
+                    ConfirmButtons(title: "退出", confirming: $confirming, spacing: 12) { intents.dismissScreen() }
                 }
             } else if let notice = phone.notice {
                 NoticeBanner(notice: notice, intents: intents)
